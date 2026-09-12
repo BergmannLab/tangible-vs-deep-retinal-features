@@ -1,0 +1,47 @@
+# PascalX gene-scoring parameters, exactly as run for the published analyses.
+#
+# These are SCIENTIFIC parameters and belong with the code, not in config.yaml:
+# they are reported in the Methods and must be identical on every machine.
+# Machine paths (reference panel, genome annotation) live in config.yaml under
+# genetic_tools.pascalx; per-cohort column names live in replication.yaml.
+#
+# NOTE ON MAF: gene scoring takes no MAF parameter -- PascalX's chi2sum() takes only
+# varcutoff, window and gpu. MAF/INFO filtering happens upstream, when the summary
+# statistics are prepared (MAF > 0.01, INFO > 0.8 for the UK Biobank discovery set).
+
+# The tool version is part of the method and is verified at run time: score_genes.py
+# aborts if the imported PascalX does not match, rather than silently scoring with a
+# different version. Confirmed 13 Aug 2026 that 0.0.5 is the newest tag on the release
+# repository and identical to its main HEAD; PascalX is not distributed on PyPI.
+tool:
+  name: PascalX
+  version: 0.0.5
+  repository: https://github.com/BergmannLab/PascalX
+  commit: 79ecec69cfc119dca2a4f19c3c43ae0fef57767b
+  # Built from source; compiled libraries must be on LD_LIBRARY_PATH -- see
+  # genetic_tools.pascalx.library_path in config.yaml.
+
+scoring:
+  method: saddle          # fast approximation of the chi2 sum distribution
+  autorescore: true       # re-score genes whose first pass failed to converge
+  varcutoff: 0.99         # fraction of variance retained in the LD eigendecomposition
+  window: 50000           # bp added on each side of a gene when assigning SNPs
+  genetype: protein_coding,lincRNA   # gene classes scored
+
+runtime:
+  gpu: true               # cupy-accelerated; falls back to CPU if unavailable
+  n_cpu: 4                # parallel workers for refpanel loading and scoring
+
+# Pathway (gene-set) scoring. Same scorer and the same `scoring:` block above --
+# a pathway score is an aggregation of the gene scores -- plus these.
+pathways:
+  mode: ranking           # ranking (chi2rank) or permutation (chi2perm)
+  fuse: true              # merge genes closer than mergedist into one unit, so that
+                          # a gene-dense locus does not count many times over
+  mergedist: 100000       # bp; PascalX's own default
+  # Only read in permutation mode; the ranking runs never use it.
+  n_samplings: 1000000
+  # Column indices in the .gmt: name in column 0, members from column 2 on. This is
+  # the MSigDB layout (name, description, genes...) and is passed to load_modules.
+  name_col: 0
+  first_gene_col: 2

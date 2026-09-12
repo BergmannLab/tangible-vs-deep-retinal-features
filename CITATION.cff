@@ -1,0 +1,127 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the article."
+title: "Tangible vs deep retinal image features"
+abstract: >-
+  Figure and analysis code for a comparison of measured and deep-learning-derived
+  retinal image features. This release reproduces every main figure from the
+  accompanying data record; the upstream analysis pipeline follows in a later
+  version under the same DOI.
+type: software
+repository-code: "https://github.com/BergmannLab/tangible-vs-deep-retinal-features"
+license: GPL-3.0-only
+version: 1.0.0
+keywords:
+  - GWAS
+  - retina
+  - retinal fundus imaging
+  - UK Biobank
+  - image-derived phenotypes
+  - deep learning
+  - foundation models
+# The code's authors, who are also the creators of its Zenodo record; the article's
+# authors are under preferred-citation.
+authors:
+  - family-names: "Beyeler"
+    alias: "mjbeyeler"
+    given-names: "MJ"
+    affiliation: "University of Lausanne, Switzerland"
+    orcid: "https://orcid.org/0000-0001-6199-4879"
+  - family-names: "Presby"
+    alias: "presbyd"
+    given-names: "David M."
+    affiliation: "University of Lausanne, Switzerland"
+    orcid: "https://orcid.org/0000-0002-1788-9980"
+
+# Fill journal, year and doi at acceptance; until then this names the work and its authors.
+preferred-citation:
+  type: article
+  title: "Comparing tangible retinal image characteristics with deep learning features reveals their complementarity for gene association and disease prediction"
+  authors:
+    - family-names: "Beyeler"
+      alias: "mjbeyeler"
+      given-names: "Michael J."
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0001-6199-4879"
+    - family-names: "Trofimova"
+      alias: "ot710"
+      given-names: "Olga"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0009-0000-0328-4676"
+    - family-names: "Bontempi"
+      alias: "denbonte"
+      given-names: "Dennis"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0003-0775-5679"
+    - family-names: "Vargas Quiros"
+      alias: "josedvq"
+      given-names: "José"
+      affiliation: "Erasmus University Medical Center, Rotterdam, The Netherlands"
+      orcid: "https://orcid.org/0000-0002-9018-4928"
+    - family-names: "Meloni"
+      given-names: "Ilenia"
+      affiliation: "Jules Gonin Eye Hospital, Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0001-9078-0538"
+    - family-names: "Liefers"
+      given-names: "Bart"
+      affiliation: "Erasmus University Medical Center, Rotterdam, The Netherlands"
+      orcid: "https://orcid.org/0000-0002-2763-6426"
+    - family-names: "Elwakil"
+      given-names: "Adham"
+      affiliation: "Jules Gonin Eye Hospital, Lausanne, Switzerland"
+      orcid: "https://orcid.org/0009-0009-4881-6643"
+    - family-names: "Bors"
+      alias: "SachaBors"
+      given-names: "Sacha"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0009-0007-0478-0808"
+    - family-names: "Quintas"
+      alias: "laquinte1906"
+      given-names: "Ian"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0009-0002-1538-1195"
+    - family-names: "Böttger"
+      alias: "LeahBoettger"
+      given-names: "Leah"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0009-0009-0253-8772"
+    - family-names: "Iuliani"
+      alias: "ilaria-iuliani"
+      given-names: "Ilaria"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0003-1758-0497"
+    - family-names: "Ortín Vela"
+      alias: "OVSofia"
+      given-names: "Sofía"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0002-2268-9772"
+    - family-names: "Conedera"
+      given-names: "Federica M."
+      affiliation: "University of Bern, Switzerland"
+      orcid: "https://orcid.org/0000-0001-7078-4136"
+    - family-names: "Tomasoni"
+      alias: "mattiat"
+      given-names: "Mattia"
+      affiliation: "Jules Gonin Eye Hospital, Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0001-8775-2384"
+    - family-names: "Bergin"
+      given-names: "Ciara"
+      affiliation: "Jules Gonin Eye Hospital, Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0002-5837-7308"
+    - family-names: "Schlingemann"
+      given-names: "Reinier O."
+      affiliation: "Jules Gonin Eye Hospital, Lausanne, Switzerland"
+    - family-names: "Klaver"
+      given-names: "Caroline C. W."
+      affiliation: "Erasmus University Medical Center, Rotterdam, The Netherlands"
+      orcid: "https://orcid.org/0000-0002-2355-5258"
+    - family-names: "Presby"
+      alias: "presbyd"
+      given-names: "David M."
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0002-1788-9980"
+    - family-names: "Bergmann"
+      alias: "ftsven"
+      given-names: "Sven"
+      affiliation: "University of Lausanne, Switzerland"
+      orcid: "https://orcid.org/0000-0002-6785-9034"
+    - name: "VascX Consortium"

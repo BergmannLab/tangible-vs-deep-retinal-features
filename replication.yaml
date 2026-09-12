@@ -1,0 +1,353 @@
+cohorts:
+  - name: CoLaus
+    base_dir: null
+    sumstats_subdir: PascalX/input
+    file_glob: "*.tsv"
+    columns:
+      variant_key: variant_key
+      rsid: rsid
+      chromosome: chr
+      position: pos
+      effect: beta
+      stderr: se
+      non_effect_allele: A1 # baseline in statistical model
+      effect_allele: A2
+      pvalue: P
+      sample_size: null
+    skip_filtering: true
+    type: dtif
+  - name: RotterdamStudy
+    base_dir: null
+    sumstats_subdir: sumstats
+    file_glob: "*.tbl"
+    columns:
+      variant_key: variant_key
+      # rsid is absent from the raw METAL .tbl; the replication pipeline adds it
+      # into *__with_rsids.tbl, which is the input both PascalX gene scoring and
+      # LDSC munging require.
+      rsid: rsid
+      chromosome: Chromosome
+      position: Position
+      effect: Effect
+      stderr: StdErr
+      non_effect_allele: Allele2
+      effect_allele: Allele1
+      pvalue: P-value
+      sample_size: OBS_CT
+    type: dtif
+    outputs:
+      top_hits_suffix: "__top_hits"
+      rsid_suffix: "__with_rsids"
+      candidates_unpruned_suffix: "__candidates_unpruned"
+      candidates_pruned_suffix: "__candidates_pruned"
+      thinned_suffix: "__thinned"
+      temp_dir: /tmp
+  - name: RotterdamStudy_MTIF
+    base_dir: null
+    sumstats_subdir: ""
+    file_glob: "*.tbl"
+    columns:
+      variant_key: variant_key
+      rsid: rsid
+      chromosome: Chromosome
+      position: Position
+      effect: Effect
+      stderr: StdErr
+      non_effect_allele: Allele1
+      effect_allele: Allele2
+      pvalue: P-value
+      sample_size: OBS_CT
+    type: mtif
+    outputs:
+      top_hits_suffix: "__top_hits"
+      rsid_suffix: "__with_rsids"
+      candidates_unpruned_suffix: "__candidates_unpruned"
+      candidates_pruned_suffix: "__candidates_pruned"
+      thinned_suffix: "__thinned"
+      temp_dir: /tmp
+
+  # Contralateral (left-eye) internal replication cohort.
+  # Per-trait candidate/top-hit tables are produced by the replication pipeline's
+  # left-eye preprocessing step with generic (non-trait-suffixed) column names, so one
+  # static entry describes all 17 dTIFs.
+  - name: LeftEye
+    base_dir: null
+    # PascalX gene-score directory for the left eye (<ukb>__gene_scores), used by the
+    # gene-level contralateral replication figures.
+    gene_scores_dir: null
+    sumstats_subdir: ""
+    file_glob: "*__candidates_unpruned.tsv"
+    columns:
+      variant_key: variant_key
+      rsid: rsid
+      chromosome: chr
+      position: pos
+      effect: beta
+      stderr: se
+      non_effect_allele: a_0  # BGENIE reference allele
+      effect_allele: a_1      # BGENIE effect allele (beta is per-a_1 dose)
+      pvalue: p
+      sample_size: null
+    type: dtif
+    outputs:
+      top_hits_suffix: "__top_hits"
+      candidates_unpruned_suffix: "__candidates_unpruned"
+      candidates_pruned_suffix: "__candidates_pruned"
+      thinned_suffix: "__thinned"
+      temp_dir: /tmp
+
+# UK Biobank discovery cohort configuration (raw and pruned top-hits)
+ukb_discovery_cohort:
+  # Raw UKB top-hits (pre-pruning), files end with __top_hits.tsv
+  raw_top_hits_dir: null
+  raw_top_hits_glob:
+    - "*__top_hits.tsv"
+    - "*__top_hits.csv"
+  # Pruned UKB top-hits (INFO>0.8, 0.01<AF<0.99, LD-pruned)
+  sumstats_dir: null
+  pruned_dir: null
+  pruned_glob:
+    - "*.csv"
+    - "*.tsv"
+  # In UKB, dTIF labels match CoLaus labels with a "_pred" suffix
+  ukb_label_suffix: "_pred"
+  columns:
+    chromosome: chr
+    position: pos
+    rsid: rsid
+    non_effect_allele: a_0
+    effect_allele: a_1
+    effect_suffix: _beta
+    stderr_suffix: _se
+    pvalue: ordinary_pvals
+    sample_size: N
+  # Column names of the full *__gwas_sumstats.tsv files, which is what LDSC and
+  # PascalX read. These are NOT the top-hit names above. The step that writes
+  # __gwas_sumstats.tsv renames BGENIE's a_0 -> A1 and a_1 -> A2, so in that file
+  # **A1 is the NON-effect allele and A2 is the effect allele** -- the reverse of
+  # the PLINK convention, and the reverse of what LDSC assumes when it guesses.
+  # Declared here so that no tool has to guess: the LDSC munge wrapper for
+  # UKBiobank emits `--a1 A2 --a2 A1`.
+  #
+  # This block is deliberately NOT a `cohorts:` entry -- a dozen replication
+  # scripts iterate that list, and UKB is the discovery set, not a replication
+  # cohort. tools/cohort_config.py resolves the name `UKBiobank` to here.
+  sumstats_columns:
+    rsid: rsid
+    non_effect_allele: A1
+    effect_allele: A2
+    effect: beta
+    stderr: se
+    pvalue: P
+    sample_size: N
+
+pooling:
+  thinning_factor: 1.0003
+  chunk_size: 1000000
+  pp_threshold: 0.0
+  joint_suffix: "joint_thinned__{trait_count}traits.tsv"
+
+# Trait label alignment for dTIFs across cohorts
+labels:
+  dtif:
+    colaus:
+      - mean_angle-taa
+      - mean_angle-tva
+      - tau1_vein
+      - tau1_artery
+      - ratio_AV_DF
+      - eq_CRAE
+      - ratio_CRAE_CRVE
+      - D_A_std
+      - D_V_std
+      - eq_CRVE
+      - ratio_VD
+      - VD_orig_artery
+      - bifurcations
+      - VD_orig_vein
+      - medianDiameter_artery
+      - medianDiameter_vein
+      - ratio_AV_medianDiameter
+    rotterdam:
+      - meta_mean_angle_taa1
+      - meta_mean_angle_tva1
+      - meta_tau1_vein1
+      - meta_tau1_artery1
+      - meta_ratio_AV_DF1
+      - meta_eq_CRAE1
+      - meta_ratio_CRAE_CRVE1
+      - meta_D_A_std1
+      - meta_D_V_std1
+      - meta_eq_CRVE1
+      - meta_ratio_VD1
+      - meta_VD_orig_artery1
+      - meta_bifurcations1
+      - meta_VD_orig_vein1
+      - meta_medianDiameter_artery1
+      - meta_medianDiameter_vein1
+      - meta_ratio_AV_medianDiameter1
+  mtif:
+    colaus: []
+    rotterdam:
+      - ta_arteries1
+      - ta_veins1
+      - tort_veins1
+      - tort_arteries1
+      - tort_ratio1
+      - cre_arteries1
+      - cre_ratio1
+      - diam_arteries_std1
+      - diam_veins_std1
+      - cre_veins1
+      - vd_ratio1
+      - vd_arteries1
+      - bifurcations1
+      - vd_veins1
+      - diam_arteries_median1
+      - diam_veins_median1
+      - diam_ratio1
+
+# Output naming for candidate SNP files
+output:
+  candidates_suffix: "__candidates"
+
+# Explicit cross-cohort label mappings for convenience
+label_mappings:
+  dtif:
+    - rotterdam: meta_mean_angle_taa1
+      colaus: mean_angle-taa
+      ukb: mean_angle_taa_pred
+      plot_name: "A temporal angle"
+    - rotterdam: meta_mean_angle_tva1
+      colaus: mean_angle-tva
+      ukb: mean_angle_tva_pred
+      plot_name: "V temporal angle"
+    - rotterdam: meta_tau1_vein1
+      colaus: tau1_vein
+      ukb: tau1_vein_pred
+      plot_name: "V tortuosity"
+    - rotterdam: meta_tau1_artery1
+      colaus: tau1_artery
+      ukb: tau1_artery_pred
+      plot_name: "A tortuosity"
+    - rotterdam: meta_ratio_AV_DF1
+      colaus: ratio_AV_DF
+      ukb: ratio_AV_DF_pred
+      plot_name: "ratio tortuosity"
+    - rotterdam: meta_eq_CRAE1
+      colaus: eq_CRAE
+      ukb: eq_CRAE_pred
+      plot_name: "A central retinal eq"
+    - rotterdam: meta_ratio_CRAE_CRVE1
+      colaus: ratio_CRAE_CRVE
+      ukb: ratio_CRAE_CRVE_pred
+      plot_name: "ratio central retinal eq"
+    - rotterdam: meta_D_A_std1
+      colaus: D_A_std
+      ukb: D_A_std_pred
+      plot_name: "A std diameter"
+    - rotterdam: meta_D_V_std1
+      colaus: D_V_std
+      ukb: D_V_std_pred
+      plot_name: "V std diameter"
+    - rotterdam: meta_eq_CRVE1
+      colaus: eq_CRVE
+      ukb: eq_CRVE_pred
+      plot_name: "V central retinal eq"
+    - rotterdam: meta_ratio_VD1
+      colaus: ratio_VD
+      ukb: ratio_VD_pred
+      plot_name: "ratio vascular density"
+    - rotterdam: meta_VD_orig_artery1
+      colaus: VD_orig_artery
+      ukb: VD_orig_artery_pred
+      plot_name: "A vascular density"
+    - rotterdam: meta_bifurcations1
+      colaus: bifurcations
+      ukb: bifurcations_pred
+      plot_name: "bifurcations"
+    - rotterdam: meta_VD_orig_vein1
+      colaus: VD_orig_vein
+      ukb: VD_orig_vein_pred
+      plot_name: "V vascular density"
+    - rotterdam: meta_medianDiameter_artery1
+      colaus: medianDiameter_artery
+      ukb: medianDiameter_artery_pred
+      plot_name: "A median diameter"
+    - rotterdam: meta_medianDiameter_vein1
+      colaus: medianDiameter_vein
+      ukb: medianDiameter_vein_pred
+      plot_name: "V median diameter"
+    - rotterdam: meta_ratio_AV_medianDiameter1
+      colaus: ratio_AV_medianDiameter
+      ukb: ratio_AV_medianDiameter_pred
+      plot_name: "ratio median diameter"
+  mtif:
+    - rotterdam: ta_arteries
+      colaus: mean_angle_taa
+      ukb: mean_angle_taa_true
+      plot_name: "A temporal angle"
+    - rotterdam: ta_veins
+      colaus: mean_angle_tva
+      ukb: mean_angle_tva_true
+      plot_name: "V temporal angle"
+    - rotterdam: tort_veins
+      colaus: tau1_vein
+      ukb: tau1_vein_true
+      plot_name: "V tortuosity"
+    - rotterdam: tort_arteries
+      colaus: tau1_artery
+      ukb: tau1_artery_true
+      plot_name: "A tortuosity"
+    - rotterdam: tort_ratio
+      colaus: ratio_AV_DF
+      ukb: ratio_AV_DF_true
+      plot_name: "ratio tortuosity"
+    - rotterdam: cre_arteries
+      colaus: eq_CRAE
+      ukb: eq_CRAE_true
+      plot_name: "A central retinal eq"
+    - rotterdam: cre_ratio
+      colaus: ratio_CRAE_CRVE
+      ukb: ratio_CRAE_CRVE_true
+      plot_name: "ratio central retinal eq"
+    - rotterdam: diam_arteries_std
+      colaus: D_A_std
+      ukb: D_A_std_true
+      plot_name: "A std diameter"
+    - rotterdam: diam_veins_std
+      colaus: D_V_std
+      ukb: D_V_std_true
+      plot_name: "V std diameter"
+    - rotterdam: cre_veins
+      colaus: eq_CRVE
+      ukb: eq_CRVE_true
+      plot_name: "V central retinal eq"
+    - rotterdam: vd_ratio
+      colaus: ratio_VD
+      ukb: ratio_VD_true
+      plot_name: "ratio vascular density"
+    - rotterdam: vd_arteries
+      colaus: VD_orig_artery
+      ukb: VD_orig_artery_true
+      plot_name: "A vascular density"
+    - rotterdam: bifurcations
+      colaus: bifurcations
+      ukb: bifurcations_true
+      plot_name: "bifurcations"
+    - rotterdam: vd_veins
+      colaus: VD_orig_vein
+      ukb: VD_orig_vein_true
+      plot_name: "V vascular density"
+    - rotterdam: diam_arteries_median
+      colaus: medianDiameter_artery
+      ukb: medianDiameter_artery_true
+      plot_name: "A median diameter"
+    - rotterdam: diam_veins_median
+      colaus: medianDiameter_vein
+      ukb: medianDiameter_vein_true
+      plot_name: "V median diameter"
+    - rotterdam: diam_ratio
+      colaus: ratio_AV_medianDiameter
+      ukb: ratio_AV_medianDiameter_true
+      plot_name: "ratio median diameter"

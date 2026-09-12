@@ -1,0 +1,1268 @@
+# config.yaml
+
+# Which configuration to use
+# ---------------------------------------------------------------------------------------
+# TWO FILES, ONE CONFIGURATION. This one is published with the code and carries everything
+# that is about the STUDY. Every machine path -- 35 of them -- lives in `config.local.yaml`,
+# which is gitignored and stays on our machines; here those keys are `null`, so the shape
+# of the configuration is still readable by someone who will never have the directories.
+#
+# Read it with `load_config()` from src/config.py (or src/config.R), which merges the two.
+# `yaml.safe_load(open("config.yaml"))` still parses and will hand you `None` for every
+# machine path WITHOUT SAYING SO -- which is how a script comes to write `None/output.csv`.
+# ---------------------------------------------------------------------------------------
+
+active_profile: rebuttal_highQualitySNPs # <-- preprint / rebuttal / rebuttal_highQualitySNPs
+
+
+
+# ======================================================================
+# Profile-specific configuration (only variables that differ)
+# ======================================================================
+
+profiles:
+
+  preprint:
+    paths:
+      tif_dir: null
+      lv_dir:  null
+      lv_pcs_dir: null
+    disease_associations:
+      betas:  NA
+      log10p: NA
+
+  rebuttal:
+    paths:
+      tif_dir: null
+      lv_dir:  null
+      lv_pcs_dir: null
+    disease_associations:
+      betas:  null
+      log10p: null
+      
+  rebuttal_highQualitySNPs:
+    paths:
+      tif_dir: null
+      lv_dir:  null
+      lv_pcs_dir: null
+    disease_associations:
+      betas:  null
+      log10p: null
+
+  # The profile a reader OUTSIDE the group gets. It is deliberately full of nulls rather
+  # than of plausible-looking directory names, because the honest statement is that the
+  # public tier cannot run these paths at all:
+  #
+  #   - the per-trait GWAS directories are not a download. The summary statistics are in
+  #     the GWAS Catalog under per-study accessions, so there is no local directory that
+  #     corresponds to `tif_dir`, and inventing one would mean a script silently reading
+  #     the wrong thing instead of stopping;
+  #   - the disease association matrices are computed from individual-level covariates and
+  #     are not deposited anywhere.
+  #
+  # A null therefore means "this tier does not have this", and a script that needs one
+  # should fail loudly and say so. What the public tier CAN do is regenerate the figures
+  # from the deposit, which is fetched by DOI into `data_sources.cache_dir` and does not
+  # come through this block at all.
+  public:
+    paths:
+      tif_dir:    null   # GWAS Catalog accessions -- see README, not a local directory
+      lv_dir:     null   # same
+      lv_pcs_dir: null   # never deposited: unfiltered, not the reported results
+    disease_associations:
+      betas:  NA
+      log10p: NA
+
+
+
+# ======================================================================
+# Shared configuration (identical across profiles)
+# ======================================================================
+
+colors:
+  # The paper's feature-set palette, and the ONLY place these four hex values are written.
+  # Anchored so that any other block of this file which needs one of them aliases it
+  # (*color_dtifs) instead of repeating the literal -- a repeated literal is a copy that a
+  # change here would not reach. Scripts must read them through
+  # src/plot_style.feature_set_colors(), which raises on a missing key rather than falling
+  # back to a hardcoded default (4 Sep 2026).
+  mtifs: &color_mtifs "#4DB8FF"
+  dtifs: &color_dtifs "#FF7F00"
+  lvs: &color_lvs "#4DAF4A"
+  top_lvs: &color_top_lvs "#984EA3"
+  # The Manhattans shade alternate chromosomes in a paler version of the feature set's
+  # colour. It used to be three hand-picked hex values that no longer matched their base
+  # (#B3E0FF against #B8E3FF for the mTIFs), so a change here would not have reached them.
+  # Now they are mixed from the colours above, this far towards white (4 Sep 2026).
+  alternate_chromosome_tint: 0.6
+
+gwas:
+  high_quality_filters:
+    info_min: 0.8
+    maf_min: 0.01
+  # Multiple-testing burden per feature set. Every Figure 3 panel reads these -- do not
+  # write 17 / 177 / 1024 into a script.
+  #
+  # n_effective_lvs is the correction for the LATENT VARIABLES, and it is 177, not 1024:
+  # the 1024 RETFound latent variables are strongly collinear, and 177 is the number of
+  # principal components needed to explain 95 % of their variance, i.e. the effective
+  # number of independent tests. Correcting by 1024 would be correcting for tests that
+  # were never independent.
+  n_traits: 17            # measured / deep tangible image features
+  n_lvs: 1024             # raw latent variables -- for reporting and QQ expected quantiles
+  n_effective_lvs: 177    # LVs explaining 95 % of the variance; the correction to APPLY
+  n_genes_scored: 25819   # protein-coding + lincRNA genes scored by PascalX
+  # MSigDB v7.2 gene sets scored by PascalX, and the pathway multiple-testing burden.
+  n_pathways_scored: 31120
+  genome_wide_p: 5.0e-8   # single-trait genome-wide significance, before the trait division
+
+cud_colors: ["#000000", "#e69f00", "#56b4e9", "#009e73", "#f0e442", "#0072b2", "#d55e00", "#cc79a7"]
+
+# Deposited data that scripts fetch by DOI instead of by absolute path, so the public
+# hub runs on a machine that is not ours. Handled by src/fetch_data.py:
+#
+#   from src.fetch_data import fetch
+#   paths = fetch("figure_intermediates")
+#
+# concept_doi is Zenodo's *version-independent* DOI: it always resolves to the newest
+# version of the deposit, and it is the DOI to print in the Data Availability
+# statement. Files are cached under cache_dir and checked against Zenodo's MD5, so
+# repeat runs are offline. Fetching only works for OPEN records -- anything behind UK
+# Biobank approval (stages 00-04) can never be automated and must fail loudly instead.
+data_sources:
+  cache_dir: data/external      # relative to the repo root; $MVP_DATA_CACHE overrides
+  sources:
+    figure_intermediates:
+      kind: zenodo
+      concept_doi: "10.5281/zenodo.22688789"
+      description: >
+        Per-figure intermediates that 05_figures reads. Its contents are defined by
+        the 04/05 dependency edge. Tables only --
+        a rendered figure is never deposited; a panel that is a diagram is deposited
+        as the numbers that determine it, and 05_figures redraws it.
+        Deliberately excluded: full GWAS summary
+        statistics (NHGRI-EBI GWAS Catalog), fine-tuned RETFound weights (model
+        repository), the 17 LV-principal-component summary statistics (not deposited
+        anywhere -- they were never taken through the MAF/INFO filtering the reported
+        results use), and anything individual-level.
+
+# Repositories that produced inputs this one consumes but does not contain. The paper's
+# two feature arms were extracted by two DIFFERENT codebases and neither is here: the
+# dTIFs by the fine-tuned RETFound model, the mTIFs by the group's retinal phenotyping
+# pipeline. Naming them in config rather than
+# in prose gives the pipeline's provenance check something to check against, and gives
+# the Code Availability statement one place to read its URLs from.
+#
+# `local_checkout` is where the working copy happens to sit on this machine, so it is a
+# machine fact, not a release fact -- $RETINA_PHENOTYPES_DIR overrides it and a public
+# checkout has neither. Only the provenance checks read it, and they SKIP when it is
+# absent rather than fail.
+external_code:
+  retina_phenotypes:
+    role: >
+      Measured trait image features (mTIFs). Segments arteries and veins, locates the
+      optic disc, measures vessel centrelines and diameters, and aggregates per-image
+      measurements to participants. All 17 mTIFs in this paper are its output; so are
+      the trait vocabularies tif_label / tif_name below, copied from its MAIN_LABELS /
+      MAIN_NAMES.
+    local_checkout: null
+    # Not yet public. The pipeline is described in Ortín Vela, Beyeler et al., Nat Commun
+    # 15 (2024).
+    release: unresolved
+
+# WHERE FIGURES ARE WRITTEN. `results/main_figures/` and `results/supplementary_figures/`, at
+# the top of the checkout, because in a repository whose purpose is to build figures the
+# figures should not be three levels down a path named after our submission round. A reader
+# clones, runs one script and looks in `results/`. Each is flat: the file names already say
+# which figure and panel they hold.
+#
+# NOT `figures/`: that sits one letter and one glance away from `05_figures/`, which is the
+# CODE that writes it. Two directories whose names differ by a number prefix, one holding
+# scripts and one holding their output, is a mistake waiting for the first person in a hurry.
+# `results/` says which side of that line it is on.
+#
+# Internally this is overridden in config.local.yaml to the working tree the staging script
+# reads, so nothing about our own pipeline moves.
+output:
+  figures_dir: results
+
+# Filesystem locations for figure intermediates, shared across profiles.
+#
+# Every value here is `null` in this file and supplied by config.local.yaml, which is
+# gitignored -- see the note at the top of this file. The path history of these
+# directories is recorded there too, with the paths it is about.
+#
+# manhattan_data_dir is deliberately ONE key: the Manhattan producers
+# (the SNP- and gene-level Manhattan data steps of the analysis pipeline)
+# write here and their consumers read back from the same key.
+# Inputs for the inclusion-exclusion ladder behind Supplementary Figure 1
+# (computed in the analysis pipeline). All individual-level, so the ladder
+# is computed once in the pipeline and only its eleven counts reach 05_figures.
+#
+# The last two rungs come from the UPSTREAM phenotyping pipeline, not this repository:
+# its image-to-participant step and covariate correction. gwas_phenotypes is that
+# step's output and is what the published summary statistics were computed from -- the
+# producer asserts against its index, so a silent change upstream fails loudly here.
+cohort_ladder:
+  mtif_dir:           null
+  right_eye_index:    null
+  participant_traits: null
+  covariates:         null
+  gwas_phenotypes:    null
+
+figure_data:
+  manhattan_data_dir: null
+  thinned_snps_dir:   null
+  gene_scores_dir:    null
+  # Gene symbol -> (chromosome, transcript start), hg19, Ensembl BioMart export. Used by
+  # the pipeline's gene-level Manhattan data step to give each PascalX gene score a
+  # genomic position for Figure 3d.
+  gene_annotation:    null
+  # Figure 2c's attention maps before deposit, one PNG per trait. fig2_lv.py never
+  # reads this; it fetches the deposited tiles.
+  attention_maps_dir: null
+  # Superseded: the Venns are drawn from deposited region counts by
+  # 05_figures/lib/render_venn3.py, and nothing reads these two.
+  venn_snp_svg:       null
+  venn_gene_svg:      null
+  # Figure 3 panels j/k: which pathways are shown and the functional category each is
+  # assigned to -- a curated input to the pipeline's pathway figure-table step, which
+  # computes everything downstream of it.
+  pathway_table:      null
+
+# Inputs for the Figure 6 disease/risk-factor prediction models
+# (fitted in the analysis pipeline). All present and verified 13 Aug 2026.
+disease_prediction:
+  curated_data_dir:   null   # 4_disease__curated_data_*.csv
+  binarized_diseases: null
+  fold_cache_dir:     null   # machine path; see config.local.yaml
+
+# Machine paths for the third-party tools wrapped under tools/.
+# The tools themselves (PascalX, LDSC) are cited dependencies, not vendored here;
+# these are the reference datasets and installs they need. Scientific parameters
+# live next to the code (tools/pascalx/params.yaml) -- not here -- because they
+# are published in the Methods and must not vary by machine.
+genetic_tools:
+  pascalx:
+    reference_panel:   null   # UK10K, GRCh37, PascalX .db format
+    genome_annotation: null
+    # PascalX 0.0.5 is built from source (github.com/BergmannLab/PascalX); its compiled
+    # C++ libraries must be on LD_LIBRARY_PATH before python starts, which is why
+    # run_gene_scoring.sh and not score_genes.py sets it. Create this directory with:
+    #     pixi run tools/pascalx/install_pascalx.sh
+    # A leading ./ means repo-relative (resolved by tools/cohort_config.py).
+    library_path:      ./.pascalx/PascalX/build/lib
+    # Gene sets for pathway scoring: MSigDB v7.2, gene SYMBOLS (the .gmt's symbol
+    # build, not the entrez one -- PascalX matches on the symbols in the genome
+    # annotation above). Third-party, not redistributed here; download from
+    # gsea-msigdb.org. Only score_pathways.py reads it.
+    pathway_file:      null
+  ldsc:
+    install_dir: null              # ldsc.py, munge_sumstats.py (python2)
+    ld_dir:      null  # --ref-ld-chr / --w-ld-chr
+    merge_alleles: null
+    # LDSC is python 2.7 and gets the repo's one standalone pixi environment.
+    # A leading ./ means repo-relative (resolved by tools/cohort_config.py),
+    # so the wrappers work from any directory. Create it with:
+    #     pixi install -e ldsc
+    # The published runs used bare /usr/bin/python2; both stacks were verified to
+    # give identical h2 on all 17 Rotterdam dTIF traits, so `python2` also works.
+    python: ./.pixi/envs/ldsc/bin/python
+
+plot_styles:
+  grid:
+    linestyle: "--"
+    linewidth: 0.4
+    color: "#9A9A9A"
+    alpha: 0.7
+  legend:
+    fontsize: 8
+    alpha: 1.0
+  ticks:
+    count: 3
+  titles:
+    default_show: false
+  # Panel letters (a, b, c, ...) on multi-panel figures. GLOBAL convention: every
+  # multi-panel figure in this work reads the font size + weight from here so the
+  # letters are identical. Placement is derived (not configured): each letter is
+  # centered at the x-center of its y-axis label and the y-center of its panel
+  # title -- see src/plot_style.py -> add_panel_labels(). Consumed via
+  # PlotStyle.panel_label_*. (Legacy top-level `panel_label_fontsize` is kept only
+  # for the older R cowplot scripts.)
+  # Axis furniture -- spines, axis lines and tick marks -- in POINTS AS RENDERED, shared
+  # by every figure. Figure 2's spines are 0.5 pt and Figure 3's axes match, measured off
+  # the exported PDFs and not merely asked for (5 Sep 2026).
+  #
+  # THE R CONVERSION IS TWO STEPS, NOT ONE. ggplot2's `linewidth` is in millimetres and it
+  # converts to R's `lwd` by multiplying by .pt (= 72.27/25.4); R's `lwd` unit is then
+  # 1/96 inch = 0.75 pt, NOT one point. Dividing by .pt alone therefore lands 25 % light:
+  # `0.5 / .pt` renders as 0.375 pt, which is how panels a-f came out thinner than g-j
+  # while both read this same number. natgen_style.R -> axis_lw_mm does both steps; the
+  # check is that the 0.4 mm Manhattan threshold line below measures 0.8536 pt in the PDF
+  # (= 0.4 x .pt x 0.75). matplotlib's `linewidth` is already in points, so the Python
+  # panels use this value as-is.
+  axis_linewidth_pt: 0.5
+  # Tick-mark length, in points, likewise shared. ggplot's theme_minimal() default is
+  # base_size/4 (1.75 pt at our 7 pt base) and matplotlib's is 3.5 pt; neither is chosen,
+  # so both are overridden from here.
+  axis_tick_length_pt: 2
+
+  # Colour bars, every figure (decided 3 Sep 2026, revised 4 and 5 Sep 2026): tick marks
+  # thinner and longer than matplotlib's 0.8 x 3.5 pt, drawn flush inside the bar's box by
+  # src/plot_style.py -> draw_colorbar_ticks() so an end tick never overhangs the ramp. On a
+  # vertical bar the marks sit on the bar's RIGHT edge, the label side (vertical_side; a
+  # left-edge variant was tried on 3-4 Sep and rejected).
+  #
+  # outline_pt is the width of the box's outline and 0 turns it OFF -- the borderless
+  # design, superseding the 0.4 pt black outline the
+  # 3 Sep rule added. It is a real knob, not decoration: draw_colorbar_ticks() insets the
+  # end marks by (width_pt - outline_pt) / 2 so that whichever edge is the drawn one --
+  # the outline's outer edge with an outline, the ramp's own edge without -- the outermost
+  # mark ends exactly there and never overhangs. Every bar reads it, so the marks and the
+  # box stay flush wherever it is set. What is lost at 0: the green and purple ramps start
+  # at white, so the bar's low end has no visible boundary and the mark at that end is
+  # what shows where the ramp begins.
+  colorbar_ticks:
+    length_pt: 2.0
+    width_pt: 0.4
+    vertical_side: right
+    outline_pt: 0.0
+  panel_label:
+    # 8 pt bold, GLOBAL, every figure. This is a DELIBERATE
+    # exception to the 5-7 pt band below: a panel letter is a locator, not body text, and
+    # 8 pt bold lowercase is Nature's own house style for them. natgen.text_max_pt governs
+    # everything else, and the band assertions exclude the panel letter by name so this
+    # stays a considered exception rather than a silent leak.
+    fontsize: 8
+    fontweight: bold      # "bold" or "normal"
+  # Nature Genetics artwork rules, applied to every NEW/re-rendered figure.
+  # Sources:
+  #   the journal's author guidance for this manuscript -- "ensure that text is not
+  #     smaller than 6 pts"; "no larger than a single A4 portrait page (260x179 mm)"
+  #   https://www.nature.com/documents/aj-artworkguidelines.pdf -- "All text should be
+  #     sans-serif typeface, preferably Helvetica or Arial. Maximum text size is 7pt.
+  #     Minimum text size is 5pt."; 2-column width 180 mm; RGB; vector with editable text.
+  # The two floors differ (5 vs 6). The binding one is the artwork guide's 5 pt: the docx
+  # phrases its 6 pt as "as a guideline", the artwork guide states 5 pt as the minimum.
+  # The band is 5-7 rather than 6-7 so that dense panels have
+  # the headroom the artwork guide allows. This is a floor, not a target -- figures are
+  # authored at 6-7 wherever the layout permits, and Figure 2 is.
+  # Overlaid cross-validation fold points, shared by Figure 2b and Figure 6. The journal
+  # asks for the individual observations rather than only a summary interval when n is
+  # small, so both figures draw their five folds on the bar; these are the numbers that
+  # make them the same mark. Absolute points -- not scaled with the canvas.
+  fold_markers:
+    diameter_pt: 0.92          # the dot. One absolute size for every figure that draws
+                               # folds, so the mark is the same on the page. Taken up to
+                               # half-bar (2.12 pt in Fig 6, 1.50 in Fig 2b) on 7 Sep 2026
+                               # and taken back down: the larger dots crowded the bars.
+                               # Capped at a half-bar by swarm_diameter() regardless, so a
+                               # thin bar can never be overrun.
+    edge_linewidth_pt: 0.21    # black outline
+    alpha: 1.0                 # opaque. Semi-transparency was tried on 7 Sep 2026 so the
+                               # whisker would read through the dots; at 0.92 pt the dots
+                               # are small enough that it only made them wash out, and the
+                               # whisker is legible behind them regardless.
+    saturation: 1.6            # face = the bar's colour, saturation boosted where it can be
+    lightness: 0.78            # ... and lightness dropped, which is what actually separates
+    gray_lightness: 0.55       # ... more so for the greys, where saturation does nothing
+    whisker_linewidth_pt: 0.39
+    whisker_capsize_pt: 1.18
+
+  natgen:
+    text_min_pt: 5
+    text_max_pt: 7
+    # Neither Helvetica nor Arial is installed here, so we use a metric-compatible clone.
+    # Nimbus Sans is URW's Helvetica clone -- same metrics, so it renders as Helvetica
+    # does at the same point size, which is the artwork guide's first preference.
+    # (Liberation Sans is the Arial-metric equivalent. Both satisfy the guide; this one
+    # matches the face it names first.) DejaVu Sans is NOT acceptable and leaks in through matplotlib
+    # mathtext and R plotmath unless the family is pinned explicitly.
+    font_family: "Nimbus Sans"
+    # PAGE size of a main figure. The author checklist caps a display item at 179 mm;
+    # Michael set 178 mm (11 Sep 2026).
+    display_item_max_mm:
+      width: 178
+      height: 260
+    # White border INSIDE the page, exactly this on every side at any height -- no less
+    # (cropped flush, a frame on the edge reads as cut off in a PDF viewer) and no more
+    # (Michael, 11 Sep 2026). The ink is therefore 178 - 2 x 1 = 176 mm wide.
+    display_item_border_mm: 1
+  fonts:
+    # All within the 5-7 pt band above, and deliberately at its top end: 5 pt is the floor
+    # the artwork guide allows, not the size to author at. Lowered from 10/8/9 so that
+    # nothing in a display item exceeds 7 pt.
+    title: 7
+    axis_label: 7
+    tick_label: 6
+    info_box: 6
+    panel_title: 6
+    footer: 6
+    joint_title: 7
+    joint_axis_label: 7
+    joint_tick_label: 6
+  figures:
+    # Document page geometry. The full printable panel width (used for
+    # "full-width" figure panels) is derived in code as:
+    #   page.width_cm - 2*page.margin_cm = 21.0 - 2*1.5 = 18.0 cm
+    # See src/plot_style.py -> PlotStyle.full_panel_width_cm. Never hardcode
+    # page width in mm in plotting scripts; read it from here.
+    page:
+      width_cm: 21.0      # A4 portrait width
+      height_cm: 29.7     # A4 portrait height
+      margin_cm: 1.5      # left/right document margin
+    # Main Figure 2 (a: LV-mTIF correlation clustermap; b: per-trait prediction R2),
+    # built by 05_figures/main/fig2_lv.py. Geometry in millimetres and laid out by
+    # explicit axes rectangles rather than constrained layout: a dendrogram, a heatmap
+    # and a bar strip have to share one 17-row grid exactly, and no automatic packer
+    # aligns them reliably. Width comes from natgen.display_item_max_mm.width (179 mm);
+    # the bar panel takes whatever width is left, so the parts always sum to the page.
+    fig2:
+      # GEOMETRY IS THE PUBLISHED LAYOUT, PRESERVED EXACTLY. Do not "tidy" these numbers:
+      # they are the positions the published figure was drawn with, and the whole point of
+      # expressing them as fractions of a reference canvas is that the figure can be scaled
+      # to the journal's width without any proportion changing.
+      #
+      # Panel a came from seaborn clustermap in a 7.27 x 4.5 in figure, with the axes moved
+      # by hand:
+      #     row dendrogram    [0.00, 0.2, 0.15, 0.70]
+      #     heatmap           [0.15, 0.2, 0.60, 0.70]
+      #     column dendrogram [0.15, 0.0, 0.60, 0.20]   (inverted, hangs below)
+      #     colour bar        [0.77, 0.055, 0.135, 0.02] (right of the heatmap, in the
+      #                                                   gutter that holds the trait names)
+      # Panel b (cell 24) was a separate 1.5 in wide canvas whose bar axes are 1.2 in wide
+      # and 3.15 in tall -- exactly the heatmap's height, which is how the two panels were
+      # aligned by hand. Hence heatmap : bars = 4.362 : 1.2 = 3.635 : 1.
+      published_canvas_in: [7.27, 4.5]
+      heatmap_frac:         [0.15,  0.200, 0.600, 0.70]   # x0, y0, w, h of that canvas
+      row_dendrogram_frac:  [0.00,  0.200, 0.150, 0.70]
+      col_dendrogram_frac:  [0.15,  0.000, 0.600, 0.20]
+      colorbar_frac:        [0.77,  0.055, 0.135, 0.02]
+      # The published colour maps, named here rather than in the script so every figure
+      # takes its ramp from config the way Fig 3k and Fig 4 already do (4 Sep 2026).
+      # `seismic` is diverging and centred on zero by the script (vmin = -vmax); `jet` is
+      # the map burned into David's attention images, so the key must reproduce it exactly.
+      heatmap_cmap: "seismic"       # panel a, trait x LV correlations
+      attention_cmap: "jet"         # panel c key -- must match David's rendered maps
+      bar_panel_in: [1.2, 3.15]     # panel b bar axes; height must equal the heatmap's
+      # The gutter between the heatmap and the bars is MEASURED, not inherited: it is
+      # exactly the widest rendered trait name plus the tick and the pad below. The
+      # published canvas reserved 1.82 in for those names at 8 pt, which at the journal's
+      # 6 pt leaves a band of dead space. Shrinking it changes no proportion -- every
+      # element is scaled by the same factor, and the factor is derived from the total.
+      label_to_bars_in: 0.05        # clear space between the longest name and the bars
+      # The colour bar sits in that same gutter, centred, and is sized against the trait
+      # names rather than kept at its published width (which was set by a much wider 8 pt
+      # label band). This is a deliberate departure from the published proportions.
+      colorbar_width_frac_of_labels: 0.72
+      # ... but its SHAPE is the published one: 0.135 x 0.020 of the old canvas is
+      # 0.9815 x 0.09 in = 10.91 : 1. The height follows from the width and this ratio,
+      # so re-sizing the bar to the labels cannot make it chunkier than it was.
+      colorbar_aspect: 10.91
+      bar_right_pad_in: 0.15
+      # White margin at the left and top. The published PNGs were written with
+      # bbox_inches="tight", whose default pad_inches=0.1 became part of the placed
+      # figure -- which is why the published panel letter sits inset from the corner
+      # rather than flush against it.
+      edge_pad_in: 0.10
+      # Panel letters, measured off the published rendering: the glyph top sits this many
+      # heatmap heights above the heatmap, 'a' is flush with the row dendrogram's left
+      # edge and 'b' with the left edge of the bar axes.
+      panel_letter_top_frac: 0.130
+      legend_top_gap_in: 0.055      # legend sits this far below the bar axes
+      legend_height_in: 0.945       # = 0.3 x heatmap height, as published
+      bottom_pad_in: 0.15
+      bar_group_fraction: 0.8       # seaborn barplot's default group width
+      heatmap_title_pad_pt: 6.0     # gap between the heatmap and its top axis title
+      bar_title_pad_pt: 5.0         # gap between the R2 symbol and its tick labels
+      colorbar_title_pad_pt: 4.0    # gap between "Pearson correlation" and the ramp
+      colorbar_lift_in: 0.07        # raises the colour bar, and with it panel b's key
+      # Panel c: the 17 averaged attention maps. David's grid forced 2 rows, so 9 columns;
+      # 17 tiles in 18 cells leaves the last one for the colour bar. The maps go in as
+      # bitmaps; everything written over them -- trait names, the scale -- is vector.
+      panel_c:
+        ncols: 9
+        tile_gap_frac: 0.06         # gap between tiles, as a fraction of tile width
+        band_gap_frac: 0.26         # gap between panel b's block and panel c, in tile widths
+        label_pad_frac: 0.05        # gap between a tile and its name
+        # Upper bound on the resolution a map is embedded at, at its printed width. The
+        # deposited maps are 150 dpi and go in unchanged.
+        target_dpi: 600
+        # filename = David's original arrangement (directory listing, sorted);
+        # clustered = the row order of panels a and b; canonical = config's tif_label order
+        order: filename
+        # The attention scale is HORIZONTAL and takes panel a's colour-bar rectangle, size
+        # and shape (fig2_lv.py -> cbar_rect): one figure, one kind of colour scale, under
+        # the paper-wide colour-bar rule. Its type is the tick size, 6 pt, as real text.
+        # The two fracs below are read by nothing.
+        colorbar_width_frac: 0.166  # of a tile width  -- UNUSED, see above
+        colorbar_height_frac: 0.969 # of a tile height -- UNUSED, see above
+      dendrogram_linewidth: 0.4
+      # Per-fold R2 points overlaid on each bar: solid black at 50 % opacity and no stroke,
+      # so the dots read the same on the bar and on the white page, and overlapping folds
+      # Panel b's fold dots. Their GEOMETRY -- diameter and beeswarm placement -- is the
+      # paper-wide plot_styles.fold_markers spec shared with Figure 6, so the two figures
+      # carry the same mark and cannot drift apart; the three geometry keys that used to
+      # sit here (frac_of_bar, spread, fit) were dead once that spec took over and were
+      # removed on 7 Sep 2026 rather than left to look live.
+      # What IS Figure 2's own is the fill: black, no visible outline,
+      # rather than Figure 6's popped bar colour. Black dots over a
+      # coloured bar stay legible on all four series and keep the dots the only black
+      # marks in the panel, now that the 95% CI line takes the bar's colour.
+      fold_marker_facecolor: "black"
+      # Opaque: at 0.92 pt, translucency only washes the dots out.
+      fold_marker_alpha: 1.0
+      # No outline in this figure: a black stroke around a black dot
+      # only thickens it, and on a 3.2 pt bar that is the difference between five countable
+      # points and one dark smear. Figure 6 keeps its stroke -- there the dot is a light
+      # popped colour and needs the edge to read against its bar. The stroke width from
+      # plot_styles.fold_markers is still used to SIZE the dot, so the diameter stays
+      # identical to Figure 6's; it is only not drawn.
+      fold_marker_edgecolor: "none"
+      fold_marker_linewidth: 0.0
+      dpi: 500
+    # Main Figure 3 (panels a-k), built as four horizontal strips that
+    # 05_figures/main/fig3.py stacks into one PDF. Heights are in mm and must leave the
+    # whole display item inside natgen.display_item_max_mm.
+    #   4 strips + 3 gaps = 72 + 72 + 45 + 65 + 3*2 = 260 mm, trimmed to the ink
+    #   by the assembler (cap 260)
+    # Width comes from natgen.display_item_max_mm.width (179 mm), which is 1 mm under the
+    # 18.0 cm the page geometry derives -- the checklist's cap wins over the artwork
+    # guide's nominal 180 mm 2-column width.
+    fig3:
+      # Vertical space between the four strips. Went to 1.5 on 4 Sep 2026 to buy height
+      # for the Venns and back to 2.0 the same day, once panel k's shorter heat map had
+      # left the item 9 mm under the cap. Each strip carries 1-2 mm of its own margin on
+      # top of this.
+      strip_gap_mm: 2.0
+      # Extra space ABOVE a named strip, on top of strip_gap_mm. Panel k is a row of its
+      # own and reads as a separate exhibit, so it gets a wider gutter than the gaps
+      # inside the a-c / d-f / g-j sequence.
+      strip_gap_extra_mm:
+        pathway: 2.0
+      strip_height_mm:
+        snp: 71.5            # a b c
+        gene: 71.5           # d e f
+        polygenicity: 38.7   # g h i j -- panel j shares this row, per the manuscript
+        # (45.0 until 4 Sep 2026: the g-i boxes went from squares to ghi_box_aspect 0.8,
+        # which is 6.3 mm off their height, and the strip gave up the same 6.3 mm rather
+        # than keeping it as white space. The ink measures 38.0 mm; the slack is the same
+        # 0.7 mm the square version ran with.)
+        pathway: 69.0        # k alone, full width; the square cells + 60-degree 6 pt names set the height
+        # (3 Sep 2026: the published 6.63 mm cells and 6 pt names at 60 degrees need this
+        # much canvas; the assembler trims each strip to its ink, so what the item spends
+        # on k is the ink, not this number -- keep the assembled height within 260 mm.)
+      # Panel letters line up in two columns across the whole display item, whatever
+      # strip they belong to: a, d, g and k this far from the left edge, and b, c, e, f
+      # and j the same distance into the right column. In mm.
+      panel_letter_x_mm: 1.0
+      left_width_weight: 2.5   # Manhattan, in the a-c and d-f strips
+      right_width_weight: 0.9  # QQ + Venn column
+      # Height of the QQ box (b, e) in the right column; the Venn (c, f) gets the rest of
+      # the strip. This
+      # is the largest value panel f's Venn still fits under (it needs 22.4 mm of the
+      # 71.5 mm strip at venn_scale_mm_per_unit, leaving 0.3 mm of slack), and the QQ is
+      # still box-height-limited here, not width-limited: its square panel has ~5 mm of
+      # unused width left, so every millimetre given here goes into the plot.
+      qq_height_mm: 48.8
+      # 1.0 until 4 Sep 2026. The column carries the QQ above the Venn; narrowing it by
+      # 3.7 mm gave the a-c and d-f strips the height panel k needed when its cells went
+      # to the published size, and widened the Manhattan. The column width is now only a
+      # width -- qq_height_mm sets how the strip's height is split between b/e and c/f.
+      # Panels g, h and i: the height of their axes box as a fraction of its width. The
+      # published panels were squares; all three distributions are wide and low, so the
+      # top of a square box was empty and the row was taller than it needed to be.
+      # strip_height_mm.polygenicity came down with it.
+      ghi_box_aspect: 0.8
+      # Panel g's left spine, in mm from the display item's left edge. The g-j strip is
+      # laid out by matplotlib and the a-c and d-f strips by ggplot, so nothing makes
+      # their plot areas start at the same x: g's began 1.35 mm left of the Manhattans'.
+      # This is the Manhattans' panel edge, measured off the
+      # assembled figure; g, h and i are shifted together to meet it, keeping their widths
+      # and the gaps the layout solved. It depends on the width of the Manhattan y tick
+      # labels, so it drifts if manhattan_y_breaks changes -- fig3.py measures both spines
+      # off its own PNG preview and fails the build if they part by more than
+      # axis_align_tol_mm.
+      ghi_left_mm: 10.96
+      axis_align_tol_mm: 0.15
+      venn_label_fontsize: 6   # region counts, drawn in R over the imported diagram
+      # Regular, not bold. At 6 pt inside a small diagram bold sets the numerals heavy
+      # enough to read as blobs against the fill; the published panels are lighter.
+      venn_label_fontweight: normal
+      # ONE scale for all three Venns (c, f, j), in millimetres per data unit of the
+      # diagram's own coordinate system. matplotlib_venn normalises the total area of the
+      # three circles to 1 square data unit whatever the counts are, so a shared scale
+      # makes the three panels' diagrams identical in total physical area -- 16.8 mm/unit
+      # is 282 mm^2 of ink in each. Fitting each diagram to its own panel box instead (the
+      # earlier behaviour) made c 7 % larger than f in area and j 70 % larger than both.
+      # 21.0 until 4 Sep 2026, which was the largest that fitted the tightest box (panel
+      # f's). The Venns read as too big at that size, so this is 0.8 x 21.0 -- 20 % off each diagram's width and height, 36 % off its
+      # area (282 mm^2 of circles per panel, was 441). It is no longer box-limited: the
+      # space it gives back went to the QQ boxes, see qq_height_mm.
+      venn_scale_mm_per_unit: 16.8
+      # Panel k's heat scale. The published panel used seaborn's light_palette ramp from
+      # white to this colour -- a vivid blue-violet -- NOT matplotlib's "Purples", which is
+      # duller and greyer at the low end. Kept as the RGB triple the original was written
+      # with so the panel's colour is unchanged.
+      pathway_cmap_rgb: [115, 15, 240]
+      # Panel k typography and furniture, as published (fidelity pass, 3 Sep 2026):
+      # pathway names at 60 degrees, a 0.2 pt #e0e0e0 grid between cells, colour-bar ticks
+      # every 2 units. The names are TICK LABELS, so their size comes from
+      # plot_styles.fonts like every other axis in the figure; the category headings and
+      # the in-panel asterisks get keys of their own (as Figure 4's annotations do).
+      pathway_label_rotation: 60
+      pathway_annot_fontsize: 6
+      # The category headings are titles, but a point below plot_styles.fonts.title:
+      # panel k carries four of them across the full width. Tried at 6 pt on 4 Sep 2026;
+      # back to the figure-wide 7 the same day, so k's headings weigh the same as every
+      # other panel title in the figure.
+      pathway_title_fontsize: 7
+      # Square cells, capped. The published per-category PNGs measure 6.63 mm per cell at
+      # 300 dpi and the width allows 6.2 mm, but at that size panel k takes too much
+      # visual prominence over the other panels, so the cap is the
+      # size the panel is drawn at. The drawing script still shrinks below it if 23
+      # columns plus pathway_block_gap_min_mm between blocks do not fit; it is a cap, not
+      # a target, and raising it cannot widen the panel. The colour bar keeps the
+      # paper-wide 17.17 mm height and simply overhangs the shorter heat map.
+      pathway_cell_mm: 6.63
+      # Gap between category blocks, set DIRECTLY (4 Sep 2026). The blocks used to be
+      # spread over the full width with the colour-bar clearance as the only lever, so
+      # tightening them by a millimetre meant giving the bar three -- a clumsy way to
+      # express "closer together, and further from the bar". Now this is the gap and whatever is left over becomes the clearance
+      # before the bar; the script prints both. pathway_block_gap_min_mm is the floor the
+      # cell size is allowed to shrink to protect.
+      pathway_block_gap_mm: 9.0
+      # Clear space between the last block and the colour bar, held fixed. Panel k has
+      # more width than 23 cells at the capped size plus these gaps need; that slack used
+      # to pool here (11.7 mm) or between the bar and its label. It now goes into the cell
+      # size, so both distances stay as set.
+      pathway_colorbar_gap_mm: 6.0
+      # Gap between the colour bar and its own axis label, in points: matplotlib's
+      # default, i.e. the label sits right against the tick labels. Padding it was how the
+      # bar was pulled in from the edge for a while; the spare width now goes into the
+      # CELLS instead (see pathway_cell_mm), which puts no white anywhere.
+      pathway_colorbar_label_pad_pt: 4.0
+      pathway_block_gap_min_mm: 2.5
+      pathway_cell_edge:
+        linewidth: 0.2
+        color: "#e0e0e0"
+      # --- panel k, glow rendering (fig3_pathway.py's default; --no-glow for the flat ramp)
+      # A ramp that climbs through violet to white where the evidence is strongest, with a
+      # glow on the strongest cells. Nothing here touches the flat white -> #730FF0 ramp
+      # above.
+      #
+      # Every effect below is VECTOR. Cairo's PDF backend has no Gaussian-blur filter and
+      # panel k may not be rasterised (see the pcolormesh note in fig3_pathway.py), so both
+      # glows are built from nested constant-alpha shapes -- an explicit falloff over a
+      # handful of rings, which is what a blur would give and stays a set of filled paths
+      # in the PDF.
+      pathway_glow:
+        # The ramp, low to high. #730FF0 is KEPT as the mid anchor, so the
+        # published colour is still the colour of a strongly significant cell; the ramp only
+        # adds the dark surround below it and the hot core above. Monotonic in luminance,
+        # which is also what keeps it a legal sequential map: brighter is always more
+        # significant, with no hue reversal to read against it.
+        # Positions are NOT evenly spaced: the data run to 12.19 on a scale to 13, but most
+        # cells sit between 2 and 8, so an even ramp spends its whole middle on violets a
+        # reader cannot tell apart (tried 7 Sep 2026 -- the panel came out a flat slab).
+        # These stops put #730FF0 at 0.42 and reach the hot end by 0.84, which is where the
+        # cells that carry the panel actually are.
+        # The FLOOR is a deep amethyst, not near-black. Raising it costs some contrast for the glow, which reads against the
+        # dark neighbours, so bloom strength was re-checked against this ramp, not the old.
+        # The strongest cell must LAND on the top stop, or the top colour is never
+        # actually drawn anywhere in the panel. The scale ends on the next whole unit above
+        # the data (13 for a maximum of 12.19) so the bar's top label is round, which left
+        # the best pathway at 0.938 of the ramp -- a pale lavender, not the top colour.
+        #
+        # Fixed by moving the RAMP, not the scale. Ending the scale on the data instead was
+        # tried first and is worse than it sounds: the bar's label goes from "13" to "12.2",
+        # the wider label steals width from the cells, the cells shrink, the Vascular
+        # heading rewraps to two lines and the assembled figure changes height -- breaking
+        # the "positioning and size identical" requirement for a tick label. Here the stops
+        # are compressed into [0, data_max/vmax] instead, so 12.19 is exactly the top
+        # colour, the bar still reads 13, and the geometry is untouched.
+        core_at_data_max: true
+        # The FLOOR is the published panel's own darkest cell. The bound:
+        # no cell here may be darker than the most significant cell in the published figure.
+        # So this ramp is the published one turned around -- it STARTS where that one ends
+        # and climbs to white, which is the point of the glow rendering: significant is
+        # bright.
+        #
+        # #7B1DF0, NOT #730FF0. The published ramp is a light_palette that only reaches its
+        # #730FF0 endpoint at 1.0, while its strongest cell sits at 0.938 of the scale, so
+        # the darkest colour that figure actually RENDERS is rgb(122.4, 28.3, 240.2),
+        # relative luminance 0.11310. The endpoint would have put this floor well below the
+        # bound (0.10283), and rounding that rendered colour DOWN to #7A1CF0 still missed it
+        # by a hair (0.11259). #7B1DF0 measures 0.11381 and clears it.
+        cmap_stops:
+          - [0.00, "#7B1DF0"]
+          - [0.30, "#8F3BFF"]
+          - [0.58, "#B27DFF"]
+          - [0.82, "#DCC0FF"]
+          # TOP STOP = PURE WHITE; it is the glow beside the strongest cell, not the cell,
+          # that carries the amethyst.
+          #
+          # NOTE the side effect: the strongest cell of a feature set can sit at a block's
+          # left edge (two of the three do), where a pure white cell has nothing to separate
+          # it from the white canvas. That is accepted as the price of a white top stop.
+          - [1.00, "#FFFFFF"]
+        # The published #e0e0e0 grid is a bright line on this ramp's violets, so here the
+        # separation between cells has to come from below rather than above.
+        cell_edge_color: "#1B0636"
+        # The significance asterisks: one dark silver for every cell, replacing seaborn's
+        # dark-or-white-by-luminance rule. The ramp no longer goes anywhere near black, so a
+        # dark mark has contrast on every cell: 6.17:1 against the white winner cell and
+        # 2.0:1 on the darkest one (true silver #C0C0C0 gives only 1.82:1 there). No outline
+        # (star_edge_pt 0); raise star_edge_pt to add one.
+        star_color: "#5C6268"
+        # Panel k's own asterisk style: pathway_annot_fontsize (6 pt) in the figure-wide
+        # face, drawn as text, inside Nature's 5-7 pt band. star_match_fig5 would draw
+        # Figure 5's star instead (a DejaVu outline at 7.05 pt).
+        star_match_fig5: false
+        star_font: "DejaVu Sans"
+        star_edge_color: "#4A4A52"
+        star_edge_pt: 0
+        # Cells at the *** tier lose the dark grid line around them and take their own fill
+        # colour as their boundary instead, so the strongest hits sit
+        # in the panel as unbroken blocks of colour rather than in dark cages. The mesh can
+        # only draw ONE edge colour for all cells, so these four sides are overpainted per
+        # cell, under the glow layer so the light still passes over them.
+        winner_edge_is_fill: true
+        # Applies to the THREE WINNING CELLS ONLY -- the same cells that glow, not every
+        # cell at the *** tier, which would single out a dozen cells and make the winners no
+        # different from their neighbours.
+        #
+        # The overpaint has to be WIDER than the line it replaces. Every cell in a mesh
+        # strokes its own perimeter, so a shared boundary carries TWO coincident 0.2 pt
+        # strokes -- the *** cell's and its neighbour's. Repainting at the same width
+        # covers only one of them and leaves a dark fringe that is still perfectly visible.
+        # At 3x the mesh
+        # width the winning cell's colour covers both strokes and their anti-aliasing.
+        winner_edge_width_mult: 3.0
+        # Per-cell bloom: this is the "more significant, more glowy" part. Cells below
+        # bloom_start of the scale do not glow at all; above it the spill grows with
+        # -log10(P). Drawn as concentric STROKED rings (annuli), never filled rectangles --
+        # a filled one would lie over the cell and wash the white-hot core back to lavender.
+        # Spill is in cell widths, so it survives the cell-size iteration.
+        # The bloom is the ONLY glow in the panel, and it is a function of the cell's own
+        # P and nothing else.
+        #
+        # bloom_start is a hard floor below which a cell throws no light whatever. At 0.60
+        # of the scale -- -log10(P) >= 7.8 -- 19 of the 69 cells glow; the earlier 0.45 lit
+        # 33, which is half the panel and is why dark cells looked like they were glowing.
+        # bloom_gamma then steepens what is left, so a cell just over the floor is still
+        # almost dark and only the top of the scale glows properly.
+        #
+        # Clipped to its block: with the halo gone the canvas is white, and a pale bloom
+        # spilling onto white reads as a smudge outside a crisp rectangle rather than as
+        # light. What makes the glow visible is that it falls on the DARK neighbouring
+        # cells, which is inside the block anyway.
+        # ONE cell glows per FEATURE SET -- the single strongest mTIF, dTIF and LV cell in
+        # the whole panel, chosen across all four category blocks, not one per block.
+        # Three lit cells in total.
+        #
+        # bloom_start now only acts as a floor beneath that: a feature set whose best cell
+        # does not even clear it stays dark rather than being lit for winning a weak field.
+        glow_best_per_feature_set: true
+        # All three winners glow EQUALLY. Without this the strength
+        # still scales with each winner's own P, so the LV cell at 12.19 glowed visibly
+        # harder than the mTIF one at 9.70 -- which reads as a ranking between the three,
+        # and the panel already ranks them by colour. They are each the best of their
+        # feature set; that is the thing the glow marks, and it is equally true of all three.
+        glow_equal_strength: true
+        bloom_start: 0.60
+        bloom_gamma: 2.0
+        # bloom_render: "rings" is the vector glow -- concentric stroked annuli -- and keeps
+        # the PDF vector-only. "blur" stamps the bloom into a raster field (a distance
+        # transform of the cells) and composites it over them: a continuous, heavier glow, at
+        # the cost of a BITMAP layer in the PDF.
+        bloom_render: rings
+        # The glow colour: a saturated purple, more saturated than the cells it falls on,
+        # so the glow reads on its own.
+        bloom_color: "#BA00FF"
+        # -- blur settings ---------------------------------------------------------------
+        # Resolution of the glow field, in pixels per cell, and how far the light reaches
+        # out from the cell's EDGE, in cells (it is the sigma of the falloff against
+        # distance, not a blur radius -- see draw_cell_bloom_blur on why the glow is a
+        # distance transform and not a Gaussian blur of the square).
+        # 128 px per 5.12 mm cell = 635 dpi for the layer embedded in the PDF, so the one
+        # raster in the file is not the thing that limits the figure's resolution.
+        blur_px_per_cell: 128
+        blur_sigma_cells: 0.30
+        blur_gain: 2.4
+        blur_max_alpha: 0.90
+        # A glow is ADDITIVE light, but matplotlib can only composite "over": painting the
+        # glow's amethyst on top of cells that are already violet changes almost
+        # nothing, which is why the glow went faint the moment bloom_color stopped being a
+        # pale lavender.
+        #
+        # A photographed glow does not stay one colour either -- it blows out towards white
+        # where it is brightest and keeps the saturated hue only in the faint outer aura.
+        # Ramping the layer's colour from bloom_color to white WITH intensity is therefore
+        # both the more faithful look and the thing that gives the bright part something to
+        # contrast against. blur_hot_white is how far the brightest glow goes towards white.
+        # Shared by BOTH renderers. Compositing is "over", not additive, so laying the
+        # glow's amethyst on cells that are already violet changes almost nothing;
+        # letting the light ride up towards white with its own intensity is how a glow
+        # photographs and is what makes it read at all. Without this the rings would go
+        # invisible exactly as the blur did when bloom_color stopped being a pale lavender.
+        # KEPT LOW ON PURPOSE. This is how far the glow rides towards white with its own
+        # intensity. It was 0.95, which made the glow near-white -- the same colour as the
+        # white the winning cell is painted in, so the two were indistinguishable.
+        # The core is white; the glow has to stay
+        # visibly amethyst against it.
+        #
+        # It needed to be high only while the ramp still had dark cells for the glow to
+        # fight against. With the floor now up at the published figure's darkest colour,
+        # every cell is light, and a saturated #BA00FF is MORE saturated than its
+        # surroundings -- so it reads on its own without being bleached. 0.15 leaves just a
+        # hint of heat on the innermost ring.
+        hot_white: 0.15
+        hot_gamma: 0.65
+        # PNG resolution for the glow rendering only; the published strip keeps fig3.hi_dpi.
+        png_dpi: 600
+        # -- ring settings (bloom_render: rings) -----------------------------------------
+        bloom_rings: 9
+        # How far the light reaches past the cell edge, in CELL SIDE LENGTHS, BY RANK among
+        # the three winners: the panel's strongest cell a SIXTH of a side, the other two a
+        # NINTH each. The two lesser winners are equal, so
+        # rank 1 and rank 2 differ in nothing. Ranked across all four category blocks, not
+        # within one.
+        #
+        # This is reach only. glow_equal_strength still holds, so all three glow at the same
+        # intensity -- what separates them is how far the light carries, not how hot it is.
+        #
+        # These three glows may cross the heat map's outer edge (reversed 7 Sep 2026, having
+        # been confined to it earlier the same day). They are still cut out of each other's
+        # territory, so they cannot merge.
+        bloom_spill_cells_by_rank: [0.1667, 0.1111, 0.1111]
+        # Fallback when the by-rank list is empty (e.g. if glow_best_per_feature_set is off).
+        # Tracks the winner's reach so the fallback path does not glow larger than the
+        # ranked one it stands in for.
+        bloom_spill_cells: 0.1667
+        # Falloff across the spill, after the plateau below. The exponent shapes only the
+        # fading part; the reach never changes.
+        bloom_falloff_power: 2.825
+        # Fraction of the band held at FULL strength before any fade begins. 0 is a pure
+        # falloff from the cell wall, which read as a glow already dying the moment it left
+        # the cell; 0.35 gives a solid rim that then fades. Raising it does not widen the
+        # glow -- it compresses the fade into what is left.
+        bloom_hold_frac: 0.1225
+        bloom_alpha: 1.0
+        # halo_enabled OFF since 7 Sep 2026. The halo traces a block's whole perimeter at
+        # one strength, so it glows just as brightly around a corner of near-null cells as
+        # around the best hit in the panel -- glow that is not proportional to anything,
+        # which is exactly what was rejected. The keys below are kept because the halo is
+        # otherwise sound and the block-gap guard is worth not rewriting; set this true to
+        # bring it back.
+        halo_enabled: false
+        # The halo, drawn once PER CATEGORY BLOCK and underneath it. Doing it once around
+        # all four blocks' bounding box instead fills the 9 mm gaps between them at full
+        # opacity, which turns the strip's canvas dark violet -- rejected 7 Sep 2026. The
+        # script prints the narrowest block gap against twice the halo's VISIBLE reach
+        # (halo_visible_reach_mm, where the profile falls under 1 % -- NOT halo_spread_mm,
+        # which is only where the last coat is drawn and is a fifth of a percent) and says
+        # whether the canvas between categories stays white; if that line ever reads THE
+        # HALOS MEET, either pathway_block_gap_mm went down or the spread went up.
+        #
+        # The profile is a GAUSSIAN of standard deviation halo_sigma_mm, reaching
+        # halo_peak opacity against the heat map's edge. It is built from halo_rings
+        # nested coats out to halo_spread_mm, each coat's own alpha solved so that the
+        # accumulated opacity lands on the curve -- see draw_block_halo. Two earlier
+        # attempts are why it is done this way: coats of one constant alpha, evenly
+        # spaced, gave a flat mat with a visible edge; crowding them towards the heat map
+        # with a power law traded rim density against how far the haze reached, and could
+        # not have both.
+        #
+        # The measured constraint (fig3_pathway.py prints it): the row labels start
+        # 1.94 mm out and "Feature set" 9.32 mm out, so a sigma near 1.3 mm puts the dark
+        # part of the halo entirely inside the gutter and leaves every label on a ground
+        # pale enough to keep black text. Widening sigma without re-reading that print is
+        # how the labels end up unreadable. Keep halo_spread_mm under
+        # pathway_colorbar_gap_mm (6.0) or the halo reaches the colour bar.
+        halo_rings: 28
+        halo_spread_mm: 4.5
+        halo_peak: 0.95
+        halo_sigma_mm: 1.3
+        halo_color: "#2E0575"
+        halo_corner_mm: 1.2
+        # Row labels flip to white where the halo behind them is darker than this relative
+        # luminance -- the same rule the asterisks already use on the cells.
+        label_lum_cut: 0.408
+      # Panel k's bar follows the paper-wide colour-bar rule (the conventions in 05_figures/README.md):
+      # the Figure 2 size; marks (plot_styles.colorbar_ticks) on the left edge, labels on the
+      # right, 1 pt off the bar, at the two ends of the data range (the published ticks every
+      # 2 units are gone: 4 Sep 2026, the top mark sat short of the bar's end).
+      # ONE EXCEPTION, granted 4 Sep 2026: the height below is a CAP, not the length. Panel
+      # k's heat map is three rows of pathway_cell_mm = 14.4 mm, so the paper-wide 17.17 mm
+      # bar overhung it top and bottom; the bar is shortened to the heat map's own height so
+      # its ends line up with the map's. The width -- the dimension the eye reads as "the
+      # size of the bar" -- is untouched, so this does not reopen the paper-wide rule.
+      colorbar_mm: [1.57, 17.17]      # width, height (height = cap; see above)
+      colorbar_tick_pad: 1.0
+      # Panel h's y axis is capped rather than fitted to the curve. The axis is labelled
+      # "Trait proportions", so it must not extend past 1: the bars
+      # ARE proportions and none exceeds 0.875, but the KDE line is a density scaled by
+      # the bin width, and the LVs' bandwidth (1.3 genes, Scott's rule on 1 024 traits,
+      # 21 % of them at zero) is eight times narrower than the 10-gene bin, so the line
+      # reaches 2.38 at x = 0. That is a rate, not a proportion, and no bandwidth choice
+      # fixes it -- the underlying distribution really is a spike at zero. The line is
+      # therefore CLIPPED by the axis: the LV curve leaves the panel below x = 3 genes.
+      # (2.0 from 4 Sep 2026, which fitted the curve instead; before that the axis was
+      # fitted to the data and flattened the two TIF series against the floor.)
+      # null = fit to the data, as g and i do.
+      h_y_max: 1.0
+      # Panels g/h: the KDE line. Seaborn's histplot default, which is what the published
+      # panels used.
+      kde_linewidth: 2
+      # Manhattan point size (ggplot geom_point `size`, roughly mm of diameter) as
+      # published, and the clearance the point cloud must keep from the top and bottom of
+      # its panel.
+      #
+      # manhattan_y_pad_frac lifts the y-limits by a fraction of the axis range. It is 0
+      # at the BOTTOM on purpose: the Manhattans show a window on the data (down to
+      # -log10(P) = 2) and the cloud continues below it, so wherever the window ends the
+      # cloud is cut. Padding the window did not remove that cut, it only floated it above
+      # the axis line, leaving sliced dots hanging in white space. With no bottom padding
+      # the cut lands exactly on the axis line, which covers it -- the cloud reads as
+      # resting on the axis, nothing appears below the line, and NO data point is dropped
+      # to achieve it. The top keeps its padding so the tallest peaks are not clipped
+      # (the published coord_cartesian(ylim = c(2, 300)) half-clipped every dot at the
+      # ceiling; kept as a defect fix, 3 Sep 2026).
+      manhattan_point_size: 0.1
+      manhattan_y_pad_frac: 0.0
+      manhattan_y_pad_frac_top: 0.02
+      # Annotated gene symbols on the panel-d Manhattan. The published labels were
+      # ggplot size 2.2 mm = 6.3 pt; 6 pt is the nearest value inside the 5-7 pt band.
+      # Set in italic -- Nature requires correct gene nomenclature in display items.
+      # The Manhattan significance line: dashed, at half the weight it had. ggplot `linewidth` is in MILLIMETRES, so 0.2 mm is 0.57 pt -- close
+      # to the 0.5 pt axis furniture, which is what keeps a line drawn over the point
+      # cloud from reading as a rule cutting the peaks off. A row of round points was
+      # tried in between, because ggplot's "dotted" linetype has butt ends and renders as
+      # little squares; dashed does not have that problem.
+      # 0.4 mm, not thinner: R clamps the dash run length at 1/96 inch whatever the line
+      # width, so a thinner line does not give shorter marks -- it gives the SAME 0.275 mm
+      # mark on a thinner stroke, i.e. rectangles (measured across six widths, 4 Sep 2026:
+      # 3.2:1 at 0.1 mm, 1.9:1 at 0.2, square only from ~0.4). Square dots therefore need
+      # this weight, which is also what the published figure used.
+      manhattan_threshold_linewidth: 0.4
+      # ggplot's own `dotted`, kept very thin. The published line
+      # was dashed at 0.4 mm; 0.1 mm is a quarter of that. Note R clamps the dash unit at
+      # 1/96 inch (0.26 mm) however thin the line, so each "dot" is really a 0.25 x 0.10 mm
+      # mark -- drawing them as round points instead was tried and rejected.
+      manhattan_threshold_linetype: "dotted"
+      # Panel d's top-gene marker (ggplot `size`, roughly mm of diameter). A plain red
+      # dot: the published pch 21 with a 0.5 pt black stroke at size 1.5 reads as a ring
+      # at 179 mm.
+      gene_marker_size: 0.9
+      gene_label_fontsize: 6
+      # Leader lines: ggrepel omits any segment shorter than this, so a label that ended up
+      # sitting on its own dot is simply not connected -- there is nothing to connect it to
+      # that a reader could see. Below about a millimetre the leader reads as a smudge on
+      # the marker rather than as a line. ggrepel's own default is
+      # 0.5 LINES, which at the 7 pt base size is 1.1 mm; stated here in millimetres so it
+      # does not move when a font size does. The script was passing 0, i.e. "always draw
+      # one", which is what produced the stubs.
+      # Leader lines: ggrepel DROPS any segment shorter than this, so at 1.0 mm a label
+      # that came to rest near its own marker got none and you could not tell which dot it
+      # named. 0 draws one for every label. This is the only lever
+      # touched for that: forcing a minimum leader LENGTH needs a nudge, and a nudge moves
+      # every label and made the layout worse.
+      gene_label_min_segment_mm: 0.4
+      hi_dpi: 500
+      docs_dpi: 96
+    fig4:
+      # Figure 4 (05_figures/main/fig4_per_tif.py): four annotated heat-map strips, one row per
+      # trait, rendered as published (seaborn heat maps) except for the journal's
+      # width/type/vector rules. Width is the display-item width from plot_styles.natgen;
+      # height keeps the published 8.27 x 5 in aspect ratio at that width. width_ratios = columns
+      # per strip: h2 (mTIF, dTIF) | delta h2 | gene count (mTIF, dTIF) | exclusive genes.
+      height_mm: 108
+      width_ratios: [2, 1, 2, 2]
+      annotation_fontsize: 6
+      # White separators between cells: not in the published panel, kept by decision (3 Sep 2026).
+      cell_edge_linewidth: 0.4
+      # Colour bars are the metric size of Figure 2's (measured off fig2_lv.py: 17.17 mm long,
+      # 1.57 mm thick, no outline), turned vertical, with a labelled tick at each end of
+      # the range (decided 3 Sep 2026). The published bars were shrink 0.75 / aspect 30.
+      # The exclusive-gene strip splits ONE of these bars down the middle between its two
+      # column ramps (blue mTIF left, red dTIF right, both 0..max): no rule on the split,
+      # one outline around the pair, one scale on the right -- so every bar in the figure
+      # is the same size (4 Sep 2026, split 5 Sep 2026).
+      colorbar_mm: [1.57, 17.17]      # width, height
+      h2_range: [0.0, 0.3]            # the h2 ramp; the other bars span their data
+      # marks: plot_styles.colorbar_ticks (left edge); labels on the right, 1 pt off the mark
+      colorbar_tick_pad: 1.0
+      colorbar_pad: 0.05
+      # Panels a and b: an empty gridspec column (a fraction of one heat-map column). A thin
+      # vertical rule down its middle is drawn when divider_linewidth > 0; it was tried on
+      # 3 Sep 2026 and removed again on 4 Sep 2026 -- the gap alone separates the panels.
+      panel_gap_ratio: 0.5
+      # Panel b's letter sits this far left of its heat map (a's is over the trait names):
+      # a 1.5 mm gap plus one letter width (4 Sep 2026).
+      panel_letter_gap_mm: 3.2
+      divider_linewidth: 0
+      divider_color: "#9A9A9A"
+      # The published colour maps: a green ramp on the two magnitude strips and coolwarm, centred
+      # on zero and sliced to the data range as seaborn does, on the two signed strips.
+      sequential_cmap: Greens
+      diverging_cmap: coolwarm
+      hi_dpi: 500
+      docs_dpi: 96
+    joint_width_cm: 8.5
+    joint_height_cm: 8.5
+    joint_dpi: 200
+    joint_layout:
+      left: 0.18
+      right: 0.98
+      bottom: 0.16
+      top: 0.98
+    main_fig_size_inch: [5.0, 4.0]
+    main_fig_dpi: 200
+    supp_overview_width_cm: 18.0   # = full printable width (A4 21.0 - 2x1.5cm margins)
+    supp_overview_height_ratio: 0.75
+    supp_overview_min_height_cm: 10.0
+    supp_per_trait_width_cm: 18.0
+    supp_per_trait_height_ratio: 1.1
+    supp_per_trait_min_height_cm: 13.0
+    supp_per_trait_wspace: 0.3
+    supp_per_trait_hspace: 0.3
+  lines:
+    identity_linestyle: ":"
+    identity_color: "#000000"
+    identity_alpha: 1.0
+  # Parameters for the contralateral-eye genetics supplement panel
+  # (drawn by the supplementary-figure scripts). Edit sizes/colours here, not in them.
+  # Shared defaults for ALL supplementary figures. Individual supp-figure blocks
+  # (sf_contra_genetics, sf_contra_pertif_beta, ...) inherit these and override only
+  # what they need, merged via src.plot_style.load_supp_panel_cfg(). Initialised to
+  # the values used by the genetics overview replication figure.
+  supp_defaults:
+    dpi: 400
+    marker_size: 2.8           # scatter marker diameter
+    marker_alpha: 0.8          # scatter marker opacity
+    err_linewidth: 0.6         # error-bar line width
+    # Brought into the Nature band (was 8 / 9 / 7 / 6) on 15 Aug 2026. Every
+    # sf_contra_* block below still overrides these with its own pre-Nature values, so
+    # the already-finalized supplementary figures do NOT change until each is revisited;
+    # this default only governs NEW supplementary figures. Re-typesetting the existing
+    # ones is tracked separately -- their 3.5-4 pt point labels are below even the
+    # widened 5 pt floor, and raising them needs the label placement re-verified, not
+    # just a number changed.
+    axis_label_fontsize: 7
+    title_fontsize: 7
+    tick_label_fontsize: 6
+    info_fontsize: 6           # in-panel info box text
+    info_linespacing: 1.5      # row spacing inside info boxes
+    info_box_pad: 0.3          # info / count box internal padding (boxstyle pad)
+    info_xy: [0.03, 0.97]      # top-left info box anchor (axes fraction)
+    border_linewidth: 0.5      # info box / legend / label-box border width
+    box_edgecolor: "0.5"       # gray boundary on info boxes, legend and label boxes
+    gridlines:                 # solid thin gray gridlines
+      color: "0.8"
+      linewidth: 0.4
+      linestyle: "-"
+
+  sf_contra_genetics:
+    dpi: 400
+    marker_size: 2.8           # scatter marker diameter (panels a & b)
+    err_linewidth: 0.6         # error-bar line width (panels a & b)
+    axis_label_fontsize: 8
+    title_fontsize: 9
+    tick_label_fontsize: 7
+    info_fontsize: 6           # in-panel info box text
+    info_linespacing: 1.5      # row spacing inside info boxes (uniform across panels)
+    border_linewidth: 0.5      # info box / legend / label-box border width
+    box_edgecolor: "0.5"       # gray boundary on info boxes, legend and label boxes
+    legend_y_c: 3              # panel c legend lower edge, in data units (-log10 p), above FDR/y=x
+    annotation:
+      fontsize: 4            # panel c (rsID labels)
+      fontsize_a: 3.5        # panel a (trait labels, denser cluster)
+      arrow_linewidth: 0.5
+      arrow_head: 6
+    gridlines:                 # solid thin gray gridlines (panel b)
+      color: "0.8"
+      linewidth: 0.4
+      linestyle: "-"
+
+  # Gene-level contralateral-eye overview:
+  # 1x2 (a = gene p-value concordance, b = pooled Benjamini-Hochberg). Clone of
+  # sf_contra_genetics (the SNP overview) -- 2 panels not 3, so each square panel is
+  # larger. Gene scores are p-values only (no beta / h2), hence no effect-size panel.
+  sf_contra_genes:
+    dpi: 400
+    marker_size: 2.8           # scatter marker diameter (panel a)
+    err_linewidth: 0.6         # unused (genes have no SE); kept for parity
+    axis_label_fontsize: 8
+    title_fontsize: 9
+    tick_label_fontsize: 7
+    info_fontsize: 6           # in-panel info box text
+    info_linespacing: 1.5      # row spacing inside info boxes (uniform across panels)
+    border_linewidth: 0.5      # info box / legend / label-box border width
+    box_edgecolor: "0.5"       # gray boundary on info boxes, legend and label boxes
+    axis_lim_a: 50             # panel a fixed x = y -log10 p limit (square)
+    ylim_b: 50                 # panel b fixed observed -log10 p upper limit
+    annotation:
+      fontsize: 4            # panel b (gene-symbol labels)
+      fontsize_a: 4          # panel a (gene-symbol labels)
+      arrow_linewidth: 0.5
+      arrow_head: 6
+    gridlines:                 # solid thin gray gridlines (panel a)
+      color: "0.8"
+      linewidth: 0.4
+      linestyle: "-"
+
+  # Phenotypic-prediction replication figure:
+  # 1x3 right-eye vs left-eye prediction-R2 scatter, one panel per representation
+  # (LVs / MLR / dTIFs), all 17 mTIFs labelled with gray leader lines. Inherits
+  # supp_defaults; overrides only label/marker sizing for the dense 17-trait clusters.
+  sf_contra_prediction:
+    marker_size: 3.5           # scatter marker diameter (panel area = marker_size**2)
+    title_fontsize: 9
+    annotation:
+      fontsize: 3.5            # trait labels (17 per panel -> dense cluster)
+      arrow_linewidth: 0.5     # gray leader line width
+      arrow_head: 6            # mutation_scale -> leader arrow-head size
+
+  # Shared settings for the per-dTIF small-multiple grids (the effect-size grid
+  # and the Benjamini-Hochberg grid). 17 panels in a 5-column grid on one A4 page,
+  # same panel-b/c style as the genetics overview but with fonts one point smaller for
+  # the small panels and tight vertical packing. Each per-TIF figure layers its own
+  # block on top (merged via load_supp_panel_cfg(cfg, "sf_contra_pertif", "<figure>")).
+  sf_contra_pertif:
+    ncols: 5                   # 17 panels -> 5 cols x 4 rows (3 trailing cells hidden)
+    title_fontsize: 8          # one point below the shared default (9), small panels
+    info_fontsize: 5           # one point below the shared default (6)
+    axis_label_fontsize: 7     # one point below the shared default (8), shared x/y titles
+    tick_label_fontsize: 6     # one point below the shared default (7)
+    count_xy: [0.97, 0.03]     # bottom-right count box anchor (axes fraction)
+    row_title_band_in: 0.20    # provisional vertical inches per row (title + ticks)
+    base_band_in: 0.45         # provisional extra vertical inches for the x-axis label
+    row_gap_in: 0.48           # fitted gap between panel rows
+    top_band_in: 0.20          # fitted top band (row-0 title)
+    bottom_band_in: 0.42       # fitted bottom band (last-row ticks + shared x label)
+    hspace: 0.02               # constrained-layout inter-panel spacing (fraction)
+    wspace: 0.04
+    h_pad: 0.03                # constrained-layout padding (inches)
+    w_pad: 0.03
+
+  # Effect-size scatter grid: per-TIF breakdown of overview panel b.
+  sf_contra_pertif_beta:
+    axis_lim: [-0.2, 0.2]      # shared fixed x/y beta range for every panel (3 ticks)
+
+  # Benjamini-Hochberg replication QQ grid: per-TIF breakdown of panel c.
+  sf_contra_pertif_bh:
+    axis_min: 2.0              # minimum -log10 p axis extent (matches overview panel c)
+
+  # Gene Benjamini-Hochberg grid: per-TIF breakdown of the gene overview
+  # (the gene-level overview) panel b. Same per-TIF-grid style; clone of sf_contra_pertif_bh.
+  sf_contra_pertif_genes_bh:
+    axis_min: 2.0              # minimum -log10 p axis extent (matches gene overview panel b)
+    ylim_overrides:            # per-trait upper y-limit overrides (label -> -log10 p)
+      "ratio central retinal eq": 45
+
+  # Left-vs-right dTIF QQ grid.
+  # 17 dTIF QQ panels, 5-col grid, right-eye discovery vs left-eye replication on the
+  # identical SNP set. A top legend separates discovery (black) from replication (blue).
+  sf_contra_qq:
+    ncols: 5
+    panel_title_fontsize: 8     # facet/strip trait labels (non-bold)
+    axis_label_fontsize: 8      # shared x/y axis titles
+    tick_label_fontsize: 7
+    legend_fontsize: 8
+    point_size: 0.35
+    point_alpha: 0.85
+    band_in: 0.7                # extra height (inches) for shared axis label + strips (legend sits in empty cells)
+    legend_xy: [0.72, 0.16]     # legend centre in the empty bottom-right cells (figure fraction)
+    colors: &sf_contra_eye_colors
+      right_eye: "#000000"      # discovery (right eye) = black
+      left_eye:  "#377EB8"      # replication (left eye) = blue
+      identity:  "#BBBBBB"      # faint dashed y=x line
+    dpi: 400
+
+  # The two right-vs-left panels whose classes are EYES, not feature sets: the effect-size
+  # scatter and the right/left SNP Venn. Both used to draw those
+  # classes in the dTIF orange and the LV green -- colours that mean *feature set*
+  # everywhere else in the paper (found 4 Sep 2026). They now share the eye palette
+  # directly above, so all three contralateral figures agree: right = black, left = blue.
+  # "Both" takes a neutral grey, since it is the two eye colours that carry the meaning.
+  sf_contra_eye_classes:
+    colors:
+      <<: *sf_contra_eye_colors
+      both: "#9A9A9A"
+      # Area fills need lighter ink than a point colour: a black Venn circle at any usable
+      # alpha reads as a blot, so "right" keeps its eye identity as a dark neutral instead.
+      venn_right: "#6E6E6E"
+      venn_left:  "#377EB8"
+
+  # Within-participant right-left agreement of the 17 TIFs.
+  # Two grouped horizontal-bar panels (a: Pearson r, b: ICC(A,1)), three series each.
+  sf_contra_agreement:
+    axis_label_fontsize: 8
+    title_fontsize: 9
+    tick_label_fontsize: 7
+    trait_label_fontsize: 7     # y tick labels (trait names), panel a only
+    row_height_in: 0.24         # vertical space per trait row
+    bar_fraction: 0.82          # share of a row covered by its group of bars
+    axis_lim: [0.0, 0.8]        # shared x range for r and ICC
+    axis_ticks: [0.0, 0.2, 0.4, 0.6, 0.8]
+    top_band_in: 0.38           # title band
+    bottom_band_in: 0.72        # tick labels + per-panel statistic + shared x-axis title
+    shared_xlabel: "Right vs left eye"   # figure-level, spans both panels
+    wspace: 0.06
+    # Bar order within each trait row (top to bottom). VascX is deliberately NOT a
+    # series here: the paper's measured traits are the LWNET/ARIA features throughout,
+    # and the supplementary figure must not introduce a second extraction pipeline.
+    series:
+      - {key: mtif,  label: "mTIF", color: *color_mtifs}
+      - {key: dtif,  label: "dTIF", color: *color_dtifs}
+    # Computed into the table and the inspection grids, but never drawn in the figure.
+    # VascX's grey is a literal on purpose: it is not one of the paper's feature sets and
+    # must not gain an entry in the `colors:` palette above.
+    inspection_only_series:
+      - {key: vascx, label: "mTIF (VascX)", color: "#7F7F7F"}
+    grid_inspection:            # non-supplementary scatter grids (internal inspection only)
+      ncols: 5
+      point_size: 1.2
+      point_alpha: 0.12
+      dpi: 200
+    dpi: 400
+
+covariates:
+  categorical: [Sheffield_AC, Liverpool_AC, Hounslow_AC, Croydon_AC, Birmingham_AC, Swansea_AC, genotype_measurement_batch, instance, sex]
+  continuous: [age_center_both, age_center_both_2, sex_by_age, sex_by_age_2, spherical_equivalent_both, spherical_equivalent_both_2, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10, PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20]
+
+covariate_names:               
+  categorical: [Sheffield AC, Liverpool AC, Hounslow AC, Croydon AC, Birmingham AC, Swansea AC, SNP array, Instance, Sex]
+  continuous: [Age, Age², Sex × Age, Sex × Age², Spherical equivalent, (Spherical equivalent)², Genetic PC 1, Genetic PC 2, Genetic PC 3, Genetic PC 4, Genetic PC 5, Genetic PC 6, Genetic PC 7, Genetic PC 8, Genetic PC 9, Genetic PC 10, Genetic PC 11, Genetic PC 12, Genetic PC 13, Genetic PC 14, Genetic PC 15, Genetic PC 16, Genetic PC 17, Genetic PC 18, Genetic PC 19, Genetic PC 20]
+
+covariates_preprint:
+  categorical: [Sheffield_AC, Liverpool_AC, Hounslow_AC, Croydon_AC, Birmingham_AC, Swansea_AC, genotype_measurement_batch, instance, sex]
+  continuous: [age_center_both, age_center_both_2, sex_by_age, sex_by_age_2, spherical_power_both, spherical_power_both_2, cylindrical_power_both, cylindrical_power_both_2, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10, PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20]
+
+covariate_names_preprint:               
+  categorical: [Sheffield AC, Liverpool AC, Hounslow AC, Croydon AC, Birmingham AC, Swansea AC, SNP array, Instance, Sex]
+  continuous: [Age, Age², Sex × Age, Sex × Age², Spherical power, (Spherical power)², Cylindrical power, (Cylindrical power)², Genetic PC 1, Genetic PC 2, Genetic PC 3, Genetic PC 4, Genetic PC 5, Genetic PC 6, Genetic PC 7, Genetic PC 8, Genetic PC 9, Genetic PC 10, Genetic PC 11, Genetic PC 12, Genetic PC 13, Genetic PC 14, Genetic PC 15, Genetic PC 16, Genetic PC 17, Genetic PC 18, Genetic PC 19, Genetic PC 20]
+
+diseases:                      
+  risk_factors_continuous: [DBP_both, SBP_both, PR_both, pulse_wave_arterial_stiffness_index_both, HDL_cholesterol_both, LDL_direct_both, Triglycerides_both, HbA1c_both, BMI_both, alcohol_intake_frequency_both, N_cigarettes_curr_daily_both, Pack_year_smok_both]
+  ocular_diseases_continuous: [eye_amblyopia_both, eye_presbyopia_both, eye_hypermetropia_both, eye_myopia_both, eye_astigmatism_both, eye_diabetes_both]
+  ocular_diseases_age_at_onset: [age_cataract_both, age_glaucoma_both, age_other_serious_eye_condition_both]
+  systemic_diseases_age_at_onset: [age_diabetes_both, age_high_BP_both, age_angina_both, age_heartattack_both, age_stroke_both, age_DVT_both, age_pulmonary_embolism_both, age_death]
+  systemic_diseases_binary: [date_reported_atherosclerosis, date_disorders_arteries_arterioles, date_AD]
+
+disease_names:                 
+  risk_factors_continuous: [DBP, SBP, PR, PWASI, HDL, LDL, Triglycerides, HbA1c, BMI, Alcohol, N cigarettes, Pack years]
+  ocular_diseases_continuous: [Amblyopia, Presbyopia, Hypermetropia, Myopia, Astigmatism, Diabetes-eye]
+  ocular_diseases_age_at_onset: [Cataract, Glaucoma, Other eye condition]
+  systemic_diseases_age_at_onset: [Diabetes, Hypertension, Angina, Heart attack, Stroke, DVT, Pulmonary embolism, Death]
+  systemic_diseases_binary: [Atherosclerosis, Artery/arteriole disorder, Alzheimer's]
+
+tif_label: [mean_angle_taa, mean_angle_tva, tau1_vein, tau1_artery, ratio_AV_DF, eq_CRAE, ratio_CRAE_CRVE, D_A_std, D_V_std, eq_CRVE, ratio_VD, VD_orig_artery, bifurcations, VD_orig_vein, medianDiameter_artery, medianDiameter_vein, ratio_AV_medianDiameter]
+tif_name: ["A temporal angle", "V temporal angle", "V tortuosity", "A tortuosity", "ratio tortuosity", "A central retinal eq", "ratio central retinal eq", "A std diameter", "V std diameter", "V central retinal eq", "ratio vascular density", "A vascular density", "bifurcations", "V vascular density", "A median diameter", "V median diameter", "ratio median diameter"]
+
+figure_tif_orders:
+  disease_heatmap:
+    tif_order_labels: [D_A_std, D_V_std, VD_orig_artery, VD_orig_vein, bifurcations, eq_CRAE, eq_CRVE, mean_angle_taa, mean_angle_tva, medianDiameter_artery, medianDiameter_vein, ratio_AV_DF, ratio_AV_medianDiameter, ratio_CRAE_CRVE, ratio_VD, tau1_artery, tau1_vein]
+    tif_order_names:  ["A std diameter", "V std diameter", "A vascular density", "V vascular density", "bifurcations", "A central retinal eq", "V central retinal eq", "A temporal angle", "V temporal angle", "A median diameter", "V median diameter", "ratio tortuosity", "ratio median diameter", "ratio central retinal eq", "ratio vascular density", "A tortuosity", "V tortuosity"]
+  

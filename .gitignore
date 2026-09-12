@@ -1,0 +1,27 @@
+# Machine paths. config.yaml and replication.yaml ship with `null` where a directory
+# used to be; a checkout that HAS the data supplies the values here, and these files
+# stay out of git so nobody publishes their own storage layout by accident.
+config.local.yaml
+replication.local.yaml
+
+# The data record is fetched by DOI and cached, not committed.
+.cache/
+data/
+
+# Figure output. Every panel is regenerated from the deposit; none of it is source.
+results/
+
+# PascalX is built from source by tools/pascalx/install_pascalx.sh.
+.pascalx/
+
+# fontconfig writes a cache id into the vendored font directory the first time R renders.
+05_figures/lib/fonts/.uuid
+
+# Environments and build residue.
+.pixi/
+__pycache__/
+*.py[cod]
+.Rhistory
+.RData
+.ipynb_checkpoints/
+.DS_Store

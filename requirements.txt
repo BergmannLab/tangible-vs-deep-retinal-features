@@ -1,0 +1,33 @@
+# Pinned to the versions that produced the published results.
+#
+# pixi.toml + pixi.lock are the reproducible path (`pixi install`). This file exists
+# so the same stack can be built with conda/mamba, venv or uv instead: create a
+# Python 3.8 environment and `pip install -r requirements.txt`.
+#
+# Everything under 05_figures/ that is written in Python needs only these. The R
+# panels need R and the packages listed under [feature.r.dependencies] in pixi.toml;
+# LDSC needs its own Python 2.7 environment; PascalX is built from source by
+# tools/pascalx/install_pascalx.sh.
+
+numpy==1.24.4
+pandas==2.0.3
+scipy==1.10.1
+scikit-learn==1.3.2
+statsmodels==0.14.1
+matplotlib==3.7.5
+seaborn==0.11.2
+matplotlib-venn==0.11.10
+adjustText==1.3.0
+pillow==10.4.0
+pypdf==4.3.1
+pyyaml==6.0
+openpyxl==3.1.5
+pyarrow==11.0.0
+pyreadr==0.5.2
+tqdm==4.62.3
+
+# Not needed to build figures.
+# Replication pipeline (imports the satellite; pip syntax for the same pin pixi resolves):
+#   logarithmic-thinning @ git+https://github.com/BergmannLab/logarithmic-thinning.git@v1.0.0
+# PascalX runtime:
+# cffi==1.16.0  sortedcontainers==2.4.0  fastnumbers==3.2.1  progressbar==2.5  cupy-cuda117==10.6.0

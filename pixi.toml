@@ -1,0 +1,341 @@
+[project]
+name = "minimum-viable-preprint"
+description = "Tangible vs deep retinal features -- analysis and figure environment"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+# ---------------------------------------------------------------------------
+# Provenance of these pins
+#
+# Every version below was READ OFF the interpreter that produced the published
+# analyses (python 3.8.10; packages in ~/.local/lib/python3.8/site-packages),
+# not chosen fresh. The point is to freeze what was actually used, so moving to
+# pixi cannot silently change a result.
+#
+# They are declared as PyPI dependencies, not conda ones, because that is what
+# they actually are -- pip wheels installed into the user site. Several of these
+# exact versions have no conda-forge build for python 3.8 (matplotlib 3.7.5 is
+# the first to fail), so taking the nearest conda build would substitute a
+# different package than the one the results came from.
+#
+# Deliberately NOT included, and why:
+#   torch, skopt, umap -- used only by exploratory scripts outside this release
+#   cuml     -- GPU-only (RAPIDS). The Figure 6 models were fitted in a separate CUDA
+#               environment; 05_figures only redraws their deposited results
+#   LDSC     -- python 2.7, cannot share a solve with anything here (see the
+#               `ldsc` environment at the bottom of this file)
+#
+# PascalX IS in this environment. It has no wheel -- its C++ core is built by the
+# upstream Makefile -- so it is not listed as a dependency; `tools/pascalx/
+# install_pascalx.sh` builds it at the pinned commit and pip-installs it here.
+# What IS listed below are the runtime dependencies that install pulls in, again
+# at the versions read off the published interpreter.
+# ---------------------------------------------------------------------------
+
+# Without this the environment is COSMETIC. pixi's python is 3.8, so
+# ~/.local/lib/python3.8/site-packages stays on sys.path and SHADOWS the
+# environment -- verified: numpy, pandas and matplotlib all resolved to ~/.local
+# before this was set.
+[activation.env]
+PYTHONNOUSERSITE = "1"
+# Where fontconfig looks for the typeface. 05_figures/lib/fonts holds the four Nimbus
+# Sans faces, and fontconfig picks up `$XDG_DATA_HOME/fonts` -- so pointing the variable
+# at 05_figures/lib is what makes R's cairo devices find them on a machine that has never
+# installed them. Set for BOTH environments: the R panels are drawn in `r`, the Python
+# ones register the same directory with matplotlib themselves (matplotlib ignores
+# fontconfig entirely). Without this a Mac clone silently draws in DejaVu Sans.
+XDG_DATA_HOME = "$PIXI_PROJECT_ROOT/05_figures/lib"
+
+[dependencies]
+python = "3.8.*"
+pip = "*"
+# Header-only boost::multiprecision / boost::math, included by every PascalX core
+# .cpp. Having it here means building PascalX does not require libboost-dev on the
+# host. The compiler itself (g++, and libquadmath with it) stays a system
+# prerequisite -- see tools/pascalx/README.md.
+boost-cpp = "*"
+# Recompresses the assembled Figure 3 (05_figures/main/fig3.py). pypdf composes the four
+# strips correctly but serialises the merged content stream UNCOMPRESSED -- 42 MB raw,
+# a 55 MB file whose inputs total 4 MB -- and neither compress_content_streams() nor
+# replacing /Contents with a flate-encoded stream survives its writer. `qpdf
+# --stream-data=compress` re-deflates losslessly in about a second. Ghostscript was the
+# other candidate and is worse on both counts: five minutes, and it reported the page as
+# damaged.
+qpdf = "*"
+# rsvg-convert, for Figure 1. It is the only figure with no producing script: the artwork
+# is a vector drawing, and this turns it into the PDF and PNG every other figure script
+# writes. Safe here specifically BECAUSE the drawing carries no live text -- Google's SVG
+# export outlines every glyph -- so rsvg has no text to mangle, which is the reason it is
+# not used anywhere else in this repository.
+librsvg = "*"
+
+[pypi-dependencies]
+# Core numerics / data
+numpy = "==1.24.4"
+pandas = "==2.0.3"
+scipy = "==1.10.1"
+scikit-learn = "==1.3.2"
+statsmodels = "==0.14.1"
+
+# Plotting
+matplotlib = "==3.7.5"
+seaborn = "==0.11.2"
+matplotlib-venn = "==0.11.10"
+adjustText = "==1.3.0"
+pillow = "==10.4.0"
+
+# IO / formats
+# pypdf composes the four Figure 3 strip PDFs into the single file the journal wants
+# (05_figures/main/fig3.py). Pure python and lossless; every raster route (magick,
+# pdftoppm) would throw away the vector content the figure must keep.
+pypdf = "==4.3.1"
+pyyaml = "==6.0"
+openpyxl = "==3.1.5"
+pyarrow = "==11.0.0"
+pyreadr = "==0.5.2"
+tqdm = "==4.62.3"
+
+# PascalX runtime dependencies (PascalX itself is built and installed by
+# tools/pascalx/install_pascalx.sh -- there is no wheel). numpy, scipy,
+# matplotlib, seaborn and tqdm above already satisfy its constraints
+# (numpy<1.25, scipy<1.11).
+cffi = "==1.16.0"
+sortedcontainers = "==2.4.0"
+fastnumbers = "==3.2.1"
+progressbar = "==2.5"
+# CUDA 11.7 build, 10.6.0 -- what produced the published gene scores. A newer cupy
+# build differs by 1.3e-4 in log10(p), so this pin is a fidelity choice. GPU scoring is
+# optional (score_genes.py --no-gpu); cupy only fails if you ask for a GPU.
+# cupy-cuda117 is declared per platform at the bottom of this file: it has no macOS wheel.
+
+# The logarithmic-thinning satellite, pinned to its release tag rather than vendored.
+# The library keeps flexible ranges so it stays co-installable; reproducibility lives
+# here, at the point of use, where pixi.lock resolves the tag to an exact commit.
+# v1.0.0 == ec1c744.
+# Imported by the replication pipeline's sumstats preprocessing and thinning steps.
+# Its core is stdlib-only, so this adds no transitive dependencies.
+logarithmic-thinning = { git = "https://github.com/BergmannLab/logarithmic-thinning.git", tag = "v1.0.0" }
+
+# ---------------------------------------------------------------------------
+# R (22 .R scripts + the legacy .Rmd producers). Versions again read off the
+# system R that produced the published figures: R 4.4.0.
+#
+# Long-standing trap this environment must handle: every R script in the repo
+# dies on config load under a C locale, because config.yaml's covariate_names
+# contain non-ASCII characters. Conda's R does NOT fix this by itself -- verified,
+# it starts with "Setting LC_CTYPE failed, using C" and yaml::read_yaml() then
+# fails with "invalid input found on input connection". The activation block
+# below is what actually fixes it and must stay.
+# ---------------------------------------------------------------------------
+# NOTE ON R PINS: unlike the Python side, these are NOT pinned to the versions on
+# the system R. The system's R packages came from CRAN, and conda-forge does not
+# carry those exact versions built against R 4.4 -- r-data.table 1.14.* is the
+# first to fail (its newest conda build targets R 3.6-4.3). Pinning R 4.4, which
+# is what produced the published figures, therefore forces newer package builds.
+# The resolved versions are recorded internally alongside the system
+# versions they replace, so every deviation is visible rather than implicit.
+[feature.r.target.unix.activation.env]
+LANG = "C.UTF-8"
+LC_ALL = "C.UTF-8"
+# See the note in [activation.env]: this is the half that serves cairo_pdf.
+XDG_DATA_HOME = "$PIXI_PROJECT_ROOT/05_figures/lib"
+
+# Windows: R >= 4.2 runs in UTF-8 natively there, so the C-locale trap above does not
+# arise and the locale is left alone. The font path needs Windows' %VAR% spelling.
+[feature.r.target.win.activation.env]
+XDG_DATA_HOME = "%PIXI_PROJECT_ROOT%\\05_figures\\lib"
+
+[feature.r.dependencies]
+r-base = "4.4.*"
+r-yaml = "*"
+r-magick = "*"
+r-ggplot2 = "*"
+"r-data.table" = "*"
+r-ldlinkr = "*"
+r-cowplot = "*"
+r-dplyr = "*"
+r-rsvg = "*"
+r-scales = "*"
+r-readr = "*"
+r-venndiagram = "*"
+r-tidyr = "*"
+"r-futile.logger" = "*"
+# r-cairo is unix only, at the bottom of this file: conda-forge has no Windows build for
+# R >= 4.2. No figure script loads it; they draw with grDevices::cairo_pdf.
+r-stringr = "*"
+r-qqman = "*"
+r-pacman = "*"
+r-tidyverse = "*"
+# bioconductor-karyoploter and -genomicranges are linux-64 only, at the bottom of this file:
+# bioconda builds their dependency chain for no other platform, and no figure script loads them.
+# grImport2 is what makes the main figures vector: the Venn SVGs are imported as
+# paths instead of being rasterised. Missing it fails fig3_snp.R outright.
+r-grimport2 = "*"
+r-ggrepel = "*"
+# The feature-set intersection panels (p_load'ed, so nothing warns until run time)
+r-ggupset = "*"
+r-upsetr = "*"
+r-complexupset = "*"
+
+# R gets its OWN environment rather than joining `default`. Merging them makes the
+# two solves interact: the R stack pulls conda pyyaml 6.0.2, which collides with
+# the pinned pypi pyyaml==6.0 that the published Python results used. Separate
+# environments keep the verified Python pins exactly as they are.
+#
+#   pixi run python <script>.py        # default environment
+#   pixi run -e r Rscript <script>.R   # R environment
+# no-default-feature is required: without it pixi folds the default feature (the
+# pinned Python stack) into this environment too, and the collision comes back.
+
+# ---------------------------------------------------------------------------
+# LDSC (bulik/ldsc @ aa33296) is python 2.7 and cannot share a solve with
+# anything else here, so it gets the one genuinely standalone environment.
+#
+# The published runs used the system python2. The difference was measured: python2 with
+# scipy 1.2.3 / pandas 0.24.2 and a conda stack matching LDSC's own
+# environment.yml (scipy 0.18 / pandas 0.20) give IDENTICAL h2, h2_se, lambda_gc
+# and intercept on all 17 Rotterdam dTIF traits. So the versions below are not
+# load-bearing the way the python-3.8 pins above are.
+#
+# Everything is conda: uv has no python 2.7 support, so [pypi-dependencies] is
+# not available in this environment and LDSC's pip-installed pins have to be met
+# by conda builds instead.
+#
+#   pixi run -e ldsc python2 ...       # or via the LDSC wrappers (pipeline release)
+# ---------------------------------------------------------------------------
+[feature.ldsc]
+platforms = ["linux-64"]
+
+[feature.ldsc.dependencies]
+python = "2.7.*"
+numpy = "*"
+scipy = "*"
+pandas = "*"
+bitarray = "*"
+nose = "*"
+pybedtools = "*"
+
+[environments]
+r = { features = ["r"], no-default-feature = true }
+ldsc = { features = ["ldsc"], no-default-feature = true }
+
+[tasks]
+
+# ---------------------------------------------------------------------------
+# Platforms beyond linux-64
+#
+# The published analyses ran on linux-64, and that section of pixi.lock is the
+# environment they ran in, unchanged. osx-arm64 and win-64 are solved from this same
+# manifest and then held, package by package, to the linux-64 lock wherever the locked
+# version is built for the platform. The pins below are exactly those holds; the few
+# packages that could not be held are named next to them.
+# ---------------------------------------------------------------------------
+[target.linux-64.pypi-dependencies]
+cupy-cuda117 = "==10.6.0"
+
+[feature.r.target.linux-64.dependencies]
+bioconductor-karyoploter = "*"
+bioconductor-genomicranges = "*"
+
+# PyYAML 6.0 has no cp38 arm64 wheel, and its sdist does not build under Cython 3.
+[target.osx-arm64.pypi-dependencies]
+pyyaml = "==6.0.1"
+patsy = "==1.0.2"
+
+# librsvg 2.60.2 has no osx-arm64 build; the solver takes 2.60.0, the nearest.
+#
+# ghostscript (src/display_item.py crops to the ink with `gs`) and poppler (`pdftoppm`,
+# fig3.py --png) come from the system on linux-64, as they did for the published run.
+# They are declared on osx-arm64 and win-64 so those machines need nothing outside pixi;
+# ghostscript at the version the r environment locks.
+[target.osx-arm64.dependencies]
+openssl = "==3.6.3"
+qpdf = "==12.3.2"
+ghostscript = "==10.07.1"
+poppler = "*"
+
+[feature.r.target.osx-arm64.dependencies]
+adwaita-icon-theme = "==49.0"
+curl = "==8.21.0"
+gdk-pixbuf = "==2.44.7"
+ghostscript = "==10.07.1"
+harfbuzz = "==14.3.0"
+libcurl = "==8.21.0"
+libgcc = "==16.1.0"
+libgfortran = "==16.1.0"
+libgfortran5 = "==16.1.0"
+libharfbuzz = "==14.3.0"
+libharfbuzz-devel = "==14.3.0"
+libheif = "==1.23.1"
+libxml2 = "==2.15.3"
+libxml2-16 = "==2.15.3"
+libxml2-devel = "==2.15.3"
+openexr = "==3.4.14"
+openssl = "==3.6.3"
+pandoc = "==3.10.1"
+r-bit64 = "==4.8.2"
+r-curl = "==7.1.0"
+"r-data.table" = "==1.18.4"
+r-httr = "==1.4.8"
+r-knitr = "==1.51"
+r-rmarkdown = "==2.31"
+
+# The locked ghostscript (10.07.1) is built for macOS >= 14.5. Declared twice because the
+# r environment drops the default feature, and with it the workspace-level requirement.
+[system-requirements]
+macos = "14.5"
+
+[feature.r.system-requirements]
+macos = "14.5"
+
+# win-64. conda-forge builds its Windows R packages for R 4.5 only, not the R 4.4 the
+# published R panels were drawn with, so Windows runs R 4.5; every other package, the
+# ones the figure scripts load included, resolves to its linux-64 lock version.
+# librsvg 2.60.2 has no win-64 build; the solver takes the nearest it can.
+[target.win-64.dependencies]
+harfbuzz = "==12.2.0"
+icu = "==75.1"
+libxml2-16 = "==2.15.1"
+openssl = "==3.6.3"
+pango = "==1.56.4"
+qpdf = "==12.3.2"
+ghostscript = "==10.07.1"
+poppler = "*"
+
+[target.win-64.pypi-dependencies]
+patsy = "==1.0.2"
+
+# Windows expands variables as %VAR%, not $VAR, so [activation.env]'s font path needs its
+# own spelling there.
+[target.win.activation.env]
+XDG_DATA_HOME = "%PIXI_PROJECT_ROOT%\\05_figures\\lib"
+
+[feature.r.target.unix.dependencies]
+r-cairo = "*"
+
+# R 4.5 on Windows (see the win-64 note above); every other package held to the linux-64 lock.
+[feature.r.target.win-64.dependencies]
+r-base = "4.5.*"
+curl = "==8.21.0"
+harfbuzz = "==14.3.0"
+libcurl = "==8.21.0"
+libgcc = "==16.1.0"
+libgfortran = "==16.1.0"
+libgfortran5 = "==16.1.0"
+libgomp = "==16.1.0"
+libharfbuzz = "==14.3.0"
+libharfbuzz-devel = "==14.3.0"
+libstdcxx = "==16.1.0"
+libxml2 = "==2.15.3"
+libxml2-16 = "==2.15.3"
+libxml2-devel = "==2.15.3"
+openssl = "==3.6.3"
+pandoc = "==3.10.1"
+python = "==3.14.6"
+r-bit64 = "==4.8.2"
+r-curl = "==7.1.0"
+"r-data.table" = "==1.18.4"
+r-httr = "==1.4.8"
+r-knitr = "==1.51"
+r-rmarkdown = "==2.31"
