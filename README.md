@@ -23,12 +23,14 @@ Reproduce it, alter it, or build on top.
 
 ## Quick start
 
-<a href="https://pixi.sh/latest/installation/"><img src="https://raw.githubusercontent.com/prefix-dev/pixi/main/docs/assets/pixi-logo.svg" alt="Install pixi" height="30" align="right"></a>
+<a href="https://pixi.sh/latest/installation/"><img src="assets/pixi-logo.svg" alt="Install pixi" height="30" align="right"></a>
+
+**New to pixi?** The logo on the right links to its installation instructions.
 
 ```bash
 git clone https://github.com/BergmannLab/tangible-vs-deep-retinal-features
 cd tangible-vs-deep-retinal-features
-pixi install                                     # locked; nothing to resolve
+pixi install --all                               # both environments; locked, nothing to resolve
 pixi run python 05_figures/main/fig3_build.py    # fetches its data, writes results/
 ```
 
