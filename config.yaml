@@ -565,6 +565,19 @@ plot_styles:
       # still box-height-limited here, not width-limited: its square panel has ~5 mm of
       # unused width left, so every millimetre given here goes into the plot.
       qq_height_mm: 48.8
+      # Draw the QQ panels (b, e) on log2-log2 axes instead of linear ones.
+      # RECOMMENDED but OFF by default: false reproduces the published panels, and
+      # flipping a display convention is an editorial decision, not a default.
+      #
+      # Why it is recommended: these QQs span -log10 P from ~0 to 300, and on linear
+      # axes the whole null-tracking body of the distribution is crushed into the
+      # bottom-left corner while a handful of extreme points own the panel. On log2
+      # axes the ticks are a constant ratio -- the same 4, 32, 256 the Manhattans in
+      # a and d already use -- so the bulk of the distribution is legible and the two
+      # panel types share one y scale. y = x stays a straight line because BOTH axes
+      # carry the same transform; transforming only one bends it (see the null-line
+      # note in 05_figures/lib/fast_qq_double_log.R).
+      qq_double_log: false
       # 1.0 until 4 Sep 2026. The column carries the QQ above the Venn; narrowing it by
       # 3.7 mm gave the a-c and d-f strips the height panel k needed when its cells went
       # to the published size, and widened the Manhattan. The column width is now only a

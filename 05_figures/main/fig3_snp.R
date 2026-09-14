@@ -134,7 +134,11 @@ read_thinned <- function(path) {
         stop(sprintf("%s has no rank column (expected 'unthinned_rank' or 'X1')", basename(path)))
     }
     df$rank <- df[[rank_col[1]]]
-    df[, c("chr", "pos", "pp", "rank")]
+    keep <- c("chr", "pos", "pp", "rank")
+    # original_index is the row index into the pooled pre-thinning HIGH-QUALITY
+    # variant list; its maximum sizes the QQ null (see the n_variants block below).
+    if ("original_index" %in% names(df)) keep <- c(keep, "original_index")
+    df[, keep]
 }
 
 msnp  <- read_thinned(inputs[["Fig3_02_a_snp_manhattan_mtif_thinned.csv"]])
@@ -288,11 +292,24 @@ manhattan_plot <- ggplot(data = manhattan) +
 # ---------------------------------------------------------------------------
 # Expected quantiles come from each point's pre-thinning rank over the full variant
 # count, which is why the rank column has to travel with the thinned points.
-n_snps_tifs <- 15600563 * burden$n_traits
-# The QQ's expected quantiles come from the pooled ranking over every test actually
-# run, which really is 1024 LVs -- this is a count of tests, not a significance
-# threshold, so it uses n_lvs and not n_effective_lvs.
-n_snps_lvs  <- 15600563 * burden$n_lvs
+# The denominator is the number of tests ACTUALLY RUN: the high-quality variant set
+# (MAF > 0.01, INFO > 0.8) each feature set was thinned from, times its traits. It is
+# derived per file from original_index -- the row index into that pre-thinning variant
+# list -- exactly as panel e takes its denominator from the gene tables' own
+# unthinned_total, so neither panel carries a literal that can drift from the deposit.
+#
+# It was 15600563, the RAW pre-QC variant count: 1.99x the high-quality set, which lifted
+# every expected quantile by ~0.3. At the thinning cut (observed = 2.00) the null came out
+# at 2.17-2.24 -- ABOVE the data, i.e. deflation at P = 0.01, impossible in a GWAS that is
+# inflated at the top. Derived, it lands at 1.89 / 1.87 / 1.94, below the cut.
+#
+# max(original_index) + 1 is a LOWER BOUND on that count (thinning need not retain the
+# last variant), but the three sets agree to within ~900 of 7.83 million.
+n_variants  <- function(df) max(df$original_index) + 1
+n_snps_mtif <- n_variants(msnp) * burden$n_traits
+n_snps_dtif <- n_variants(dsnp) * burden$n_traits
+# 1024 LVs: a count of tests, not a significance threshold, so n_lvs not n_effective_lvs.
+n_snps_lv   <- n_variants(lvsnp) * burden$n_lvs
 
 # Three ticks per axis with the top y tick ON the axis limit: the
 # y window ends at 300 and every series is capped there (the LVs always were; the TIFs
@@ -301,20 +318,32 @@ QQ_Y_TOP <- 300
 observed_pp <- lapply(list(msnp$pp, dsnp$pp, lvsnp$pp), function(v) pmin(v, QQ_Y_TOP))
 
 expected_pp <- list(
-    -log10(msnp$rank  / (n_snps_tifs + 1)),
-    -log10(dsnp$rank  / (n_snps_tifs + 1)),
-    -log10(lvsnp$rank / (n_snps_lvs + 1))
+    -log10(msnp$rank  / (n_snps_mtif + 1)),
+    -log10(dsnp$rank  / (n_snps_dtif + 1)),
+    -log10(lvsnp$rank / (n_snps_lv   + 1))
 )
 
 qq_colors <- c(color_codes$mtifs, color_codes$dtifs, color_codes$lvs)
+
+# Axis treatment, from config (plot_styles.figures.fig3.qq_double_log). The linear branch
+# is the published panel. The log2 branch shares the Manhattan's y ticks and needs a floor
+# above zero, which log2 cannot reach: the points are thinned at observed -log10 P >= 2 and
+# their expected quantiles start at 1.87, so window and cut both sit at 1.8.
+if (style$qq_double_log) {
+    qq_ticks <- list(c(2, 4, 8), c(4, 32, 256))
+    qq_lims  <- list(c(1.8, 10.4), c(2, QQ_Y_TOP))
+    qq_lower <- 1.8
+} else {
+    qq_ticks <- list(c(2, 6, 10), c(0, 150, QQ_Y_TOP))
+    qq_lims  <- list(c(2, 10.4), c(0, QQ_Y_TOP))
+    qq_lower <- 1.5
+}
 
 qq_snps <- fast_qq_double_log(
     observed_pp,
     expected = expected_pp,
     colors = qq_colors,
-    max_n_pvals = n_snps_tifs,
-    min_pval = 310,
-    ticks = list(c(2, 6, 10), c(0, 150, QQ_Y_TOP)),
+    ticks = qq_ticks,
     group_labels = c("measTIFs", "deepTIFs", "LVs"),
     show_legend = FALSE,
     axis_title_font_size = style$axis_label_pt,
@@ -323,9 +352,9 @@ qq_snps <- fast_qq_double_log(
     axis_linewidth_mm = style$axis_lw_mm,
     axis_tick_length_pt = style$axis_tick_len_pt,
     subsampling = FALSE,
-    ax_lims = list(c(2, 10.4), c(0, QQ_Y_TOP)),
-    log10p_lower_limit = 1.5,
-    double_log_scale = FALSE
+    ax_lims = qq_lims,
+    log10p_lower_limit = qq_lower,
+    double_log_scale = style$qq_double_log
 )
 
 # ---------------------------------------------------------------------------
@@ -361,7 +390,7 @@ qq_plot <- qq_snps$Plot +
     transparent_bg +
     # clip = "off" so the dots that sit on the 300 ceiling are drawn whole, not halved
     # by the panel edge (see fast_qq_double_log.R).
-    coord_cartesian(xlim = c(2, 10.4), ylim = c(0, QQ_Y_TOP), clip = "off")
+    coord_cartesian(xlim = qq_lims[[1]], ylim = qq_lims[[2]], clip = "off")
 
 # Panel c: draw the Venn from its deposited region counts, then import it as vector
 # paths and letterbox it into the panel box.

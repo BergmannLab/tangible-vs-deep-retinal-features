@@ -317,14 +317,24 @@ confidence_band <- confidence_band[
     is.finite(confidence_band$Lower) & is.finite(confidence_band$Upper) &
         confidence_band$Expected >= 0.3 & confidence_band$Expected <= 8.01, ]
 
+# Axis treatment, from config (plot_styles.figures.fig3.qq_double_log); linear is the
+# published panel. Unlike panel b these tables reach -log10 P = 0, so the log2 branch
+# floors at 0.1 -- as close to zero as a log axis goes -- and keeps the whole cloud.
+if (style$qq_double_log) {
+    qq_ticks <- list(c(2, 4, 8), c(4, 32, 256))
+    qq_lims  <- list(c(0.1, 8), c(0.1, 300))
+    qq_lower <- 0.1
+} else {
+    qq_ticks <- list(c(2, 5, 8), c(0, 150, 300))
+    qq_lims  <- list(c(2, 8), c(0, 300))
+    qq_lower <- 0.0
+}
+
 qq_genes <- fast_qq_double_log(
     observed_pp,
     expected = expected_pp,
     colors = c(color_codes$mtifs, color_codes$dtifs, color_codes$lvs),
-    max_n_pvals = max(mgene$unthinned_total[1], lvgene$unthinned_total[1]),
-    min_pval = MIN_PVAL,
-    # three ticks per axis, the end ticks on the limits
-    ticks = list(c(2, 5, 8), c(0, 150, 300)),
+    ticks = qq_ticks,
     group_labels = c("measTIFs", "deepTIFs", "LVs"),
     show_legend = FALSE,
     axis_title_font_size = style$axis_label_pt,
@@ -333,12 +343,12 @@ qq_genes <- fast_qq_double_log(
     axis_linewidth_mm = style$axis_lw_mm,
     axis_tick_length_pt = style$axis_tick_len_pt,
     subsampling = FALSE,
-    ax_lims = list(c(2, 8), c(0, 300)),
-    log10p_lower_limit = 0.0,
+    ax_lims = qq_lims,
+    log10p_lower_limit = qq_lower,
     band_data = confidence_band,
     band_fill = "#b0b0b0",
     band_alpha = 0.2,
-    double_log_scale = FALSE
+    double_log_scale = style$qq_double_log
 )
 
 # ---------------------------------------------------------------------------
@@ -371,7 +381,7 @@ qq_plot <- qq_genes$Plot +
     theme(plot.margin = margin(t = 25, r = 5, b = 5, l = 5), aspect.ratio = 1) +
     transparent_bg +
     # clip = "off" so the dots on the limits are drawn whole (see fig3_snp.R).
-    coord_cartesian(xlim = c(2, 8), ylim = c(0, 300), clip = "off")
+    coord_cartesian(xlim = qq_lims[[1]], ylim = qq_lims[[2]], clip = "off")
 
 # Panel f: drawn from the deposited region counts, then imported as vector paths. The
 # counts carry no text (rsvg::rsvg_svg would turn any glyph into a path), so they come back

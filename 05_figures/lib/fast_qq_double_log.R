@@ -6,7 +6,7 @@ fast_qq_double_log <- function(pvalue_lists, colors, group_labels = NULL,
                                legend_labels = NULL, expected = NULL, 
                                n_points_per_interval = 200, log2_interval = log2(3) - log2(2),
                                log10p_lower_limit = 2, log10p_upper_limit = NULL,
-                               subsampling = TRUE, max_n_pvals = NULL, min_pval = NULL, 
+                               subsampling = TRUE,
                                ax_lims = NULL, ticks = NULL, draw_rectangle = FALSE, 
                                rectangle_coords = NULL, show_legend = TRUE, font_size = 10, 
                                axis_title_font_size = 12, hide_axis_titles = FALSE,
@@ -252,8 +252,20 @@ fast_qq_double_log <- function(pvalue_lists, colors, group_labels = NULL,
     }
 
     p <- p +
-        geom_point(size = .3, alpha = 1.0) +
-        geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 0.3)
+        geom_point(size = .3, alpha = 1.0)
+
+    # The null, y = x, drawn as a SAMPLED line rather than geom_abline. geom_abline is
+    # rendered as a straight segment between its two endpoints in the panel's
+    # TRANSFORMED space, so it traces y = x only while both axes carry the same
+    # transform -- transform y alone and the line silently stops meaning y = x while
+    # still looking like a reference (the 95 % band, which is transformed correctly,
+    # parts company with it and gives the error away). Sampling the curve is correct
+    # under any combination of scales, including the log2-log2 view below.
+    null_x_range <- if (!is.null(ax_lims)) ax_lims[[1]] else range(plot_data$Expected)
+    null_line <- data.frame(x = seq(null_x_range[1], null_x_range[2], length.out = 512))
+    null_line$y <- null_line$x
+    p <- p + geom_line(data = null_line, mapping = aes(x = x, y = y),
+                       inherit.aes = FALSE, color = "black", linewidth = 0.3)
 
     if (double_log_scale) {
         # Optional log2 scaling for both axes when the double-log view is desired
