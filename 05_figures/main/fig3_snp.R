@@ -44,6 +44,18 @@ lib_dir <- if (!is.na(script_path)) {
 }
 
 source(file.path(lib_dir, "fetch_data.R"))
+
+# --double-log: draw the QQ panel on log2-log2 axes instead of linear ones.
+# RECOMMENDED but not the default, because the default reproduces the published panel and
+# changing a display convention is an editorial call. These QQs span -log10 P from ~0 to
+# 300; on linear axes the null-tracking body of the distribution is crushed into the
+# bottom-left corner while a few extreme points own the panel. On log2 axes the ticks are
+# a constant ratio -- the same 4, 32, 256 the Manhattan in the same strip already uses --
+# so the bulk is legible and both panel types share one y scale. y = x stays straight
+# because BOTH axes carry the transform; transforming one bends it (see fast_qq_double_log.R).
+# commandArgs(trailingOnly = FALSE) is already read above to locate --file=; the user's own
+# arguments follow --args in that same vector, so no further parsing is needed.
+qq_double_log <- "--double-log" %in% script_args
 source(file.path(lib_dir, "fast_qq_double_log.R"))
 source(file.path(lib_dir, "natgen_style.R"))
 
@@ -325,11 +337,11 @@ expected_pp <- list(
 
 qq_colors <- c(color_codes$mtifs, color_codes$dtifs, color_codes$lvs)
 
-# Axis treatment, from config (plot_styles.figures.fig3.qq_double_log). The linear branch
+# Axis treatment, from --double-log (see the flag note at the top). The linear branch
 # is the published panel. The log2 branch shares the Manhattan's y ticks and needs a floor
 # above zero, which log2 cannot reach: the points are thinned at observed -log10 P >= 2 and
 # their expected quantiles start at 1.87, so window and cut both sit at 1.8.
-if (style$qq_double_log) {
+if (qq_double_log) {
     qq_ticks <- list(c(2, 4, 8), c(4, 32, 256))
     qq_lims  <- list(c(1.8, 10.4), c(2, QQ_Y_TOP))
     qq_lower <- 1.8
@@ -354,7 +366,7 @@ qq_snps <- fast_qq_double_log(
     subsampling = FALSE,
     ax_lims = qq_lims,
     log10p_lower_limit = qq_lower,
-    double_log_scale = style$qq_double_log
+    double_log_scale = qq_double_log
 )
 
 # ---------------------------------------------------------------------------

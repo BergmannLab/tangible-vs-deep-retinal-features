@@ -4,6 +4,7 @@
     pixi run python 05_figures/main/fig3_build.py            # everything
     pixi run python 05_figures/main/fig3_build.py --only k    # just panel k, then assemble
     pixi run python 05_figures/main/fig3_build.py --png       # ... and the 300 dpi preview
+    pixi run python 05_figures/main/fig3_build.py --double-log  # log2-log2 QQs (b, e)
 
 Author: Michael Beyeler (github.com/mjbeyeler)
 
@@ -34,6 +35,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +51,9 @@ STRIPS = {
     "pathway": ("k", ["pixi", "run", "python",
                       "05_figures/main/fig3_pathway.py"]),
 }
+# The strips carrying a QQ panel, and so the only ones --double-log means anything to.
+QQ_STRIPS = {"snp", "gene"}
+
 # Shorthands, so a panel letter picks its strip.
 ALIASES = {"a": "snp", "b": "snp", "c": "snp",
            "d": "gene", "e": "gene", "f": "gene",
@@ -56,9 +61,11 @@ ALIASES = {"a": "snp", "b": "snp", "c": "snp",
            "j": "polygenicity", "k": "pathway"}
 
 
-def run(key):
+def run(key, double_log=False):
     """Run one strip script, returning (key, seconds, returncode, output)."""
     panels, command = STRIPS[key]
+    if double_log and key in QQ_STRIPS:
+        command = command + ["--double-log"]
     started = time.time()
     done = subprocess.run(command, cwd=str(REPO_ROOT), capture_output=True, text=True)
     return key, time.time() - started, done.returncode, done.stdout + done.stderr
@@ -75,6 +82,11 @@ def main(argv=None) -> int:
                         help="also write the 300 dpi PNG companion")
     parser.add_argument("--jobs", type=int, default=4,
                         help="how many strips to build at once (default: all four)")
+    parser.add_argument("--double-log", action="store_true",
+                        help="draw the QQ panels (b, e) on log2-log2 axes instead of "
+                             "linear ones. Recommended -- the bulk of the distribution is "
+                             "legible and the y ticks match the Manhattans -- but not the "
+                             "default, which reproduces the published panels.")
     args = parser.parse_args(argv)
 
     if args.only:
@@ -100,7 +112,8 @@ def main(argv=None) -> int:
     started = time.time()
     failed = []
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        for key, seconds, code, output in pool.map(run, wanted):
+        for key, seconds, code, output in pool.map(
+                partial(run, double_log=args.double_log), wanted):
             status = "ok" if code == 0 else "FAILED"
             print("  {:14s} {:6.1f} s  {}".format(key, seconds, status))
             if code != 0:

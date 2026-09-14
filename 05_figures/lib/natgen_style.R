@@ -96,8 +96,6 @@ natgen_style <- function(config) {
         left_weight      = fig3$left_width_weight,
         right_weight     = fig3$right_width_weight,
         qq_height_mm     = fig3$qq_height_mm,
-        # isTRUE so an absent key reads as FALSE rather than NULL.
-        qq_double_log    = isTRUE(fig3$qq_double_log),
         hi_dpi           = fig3$hi_dpi,
         docs_dpi         = fig3$docs_dpi
     )
