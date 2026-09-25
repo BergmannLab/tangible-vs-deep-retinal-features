@@ -98,14 +98,24 @@ def pop(color):
     return pop_color(color, FOLD["saturation"], FOLD["lightness"], FOLD["gray_lightness"])
 
 
-# David's x-axis ticks, pinned rather than left to the auto-locator. His 11 pt labels on a
-# 462 mm canvas gave panel a every 0.05; at 5 pt on 179 mm matplotlib thinned that to every
-# 0.10 on its own, which silently changed the axis. Keyed by the panel's xlim, with his
-# decimal places.
-XTICKS = {
-    (0.0, 0.35): ([round(0.05 * k, 2) for k in range(8)], "{:.2f}"),
-    (0.4, 1.0): ([round(0.4 + 0.1 * k, 1) for k in range(7)], "{:.1f}"),
-}
+# Three x ticks per panel: the axis floor, the top, and halfway between (25 Sep 2026).
+# The top is the panel's largest drawn value -- bar + whisker, or a fold dot -- rounded UP
+# to the next 0.1, always strictly above it, so nothing touches the axis end. Panels b and
+# c share one top so their AUC axes read against each other. Floors are fixed: R^2 from 0,
+# AUC from 0.4, so the fold AUCs that fall below chance (0.5) stay on the axis.
+def x_top(*frames) -> float:
+    """The smallest multiple of 0.1 strictly above every value drawn in these frames."""
+    peak = max(max((f["mean"] + f["err_hi"]).max(), max(max(v) for v in f["folds"]))
+               for f in frames)
+    return (np.floor(round(peak * 10, 9)) + 1) / 10
+
+
+def x_ticks(xlim):
+    """(ticks, labels) for an axis: floor, midpoint, top, with no trailing zeros."""
+    lo, hi = xlim
+    ticks = [lo, round((lo + hi) / 2, 3), hi]
+    return ticks, ["{:g}".format(t) for t in ticks]
+
 
 def BAR_EDGE_LW():
     """The bar outline weight, and now the whisker's too, so the two match at any scale."""
@@ -400,12 +410,10 @@ def draw_panel(ax, df: pd.DataFrame, outcomes_top_to_bottom, xlabel, ylabel, tit
     ax.tick_params(axis="x", labelsize=TICK_PT)
     ax.set_ylim(-0.5, len(outcomes_bottom_to_top) - 0.5)
     ax.set_xlim(*xlim)
-    if tuple(xlim) in XTICKS:
-        ticks, fmt = XTICKS[tuple(xlim)]
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([fmt.format(t) for t in ticks])
-    ax.grid(axis="x", linestyle="--", alpha=0.6, zorder=0)
-    ax.set_axisbelow(True)
+    ticks, labels = x_ticks(xlim)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labels)
+    ax.spines[["top", "right"]].set_visible(False)
     if panel_label:
         ax.text(-0.22, 1.02, panel_label, transform=ax.transAxes, fontsize=PANEL_LETTER_PT,
                 fontweight=PANEL_LETTER_WEIGHT, va="bottom", ha="left")
@@ -476,15 +484,17 @@ def panel_spec(pool_train_and_test: bool):
     R2 = "$R^{2}$"
     auc_label = "Mean AUC across Folds" if pool_train_and_test else "Mean test AUC across Folds"
     r2_label = f"Mean {R2} across Folds" if pool_train_and_test else f"Mean test {R2} across Folds"
+    a = build_panel_a()
+    b = build_auc_panel(PANEL_B_OUTCOMES, pool_train_and_test)
+    c = build_auc_panel(PANEL_C_OUTCOMES, pool_train_and_test)
+    auc_xlim = (0.4, x_top(b, c))
     return [
-        ("a", build_panel_a(), list(PANEL_A_OUTCOMES.values()), r2_label, "Risk Factors",
-         f"{R2} Scores for Risk Factors", (0.0, 0.35)),
-        ("b", build_auc_panel(PANEL_B_OUTCOMES, pool_train_and_test),
-         list(PANEL_B_OUTCOMES.values()), auc_label, "Diseases",
-         "AUC Scores for Ocular Diseases", (0.4, 1.0)),
-        ("c", build_auc_panel(PANEL_C_OUTCOMES, pool_train_and_test),
-         list(PANEL_C_OUTCOMES.values()), auc_label, "Diseases",
-         "AUC Scores for General Diseases", (0.4, 1.0)),
+        ("a", a, list(PANEL_A_OUTCOMES.values()), r2_label, "Risk Factors",
+         f"{R2} Scores for Risk Factors", (0.0, x_top(a))),
+        ("b", b, list(PANEL_B_OUTCOMES.values()), auc_label, "Diseases",
+         "AUC Scores for Ocular Diseases", auc_xlim),
+        ("c", c, list(PANEL_C_OUTCOMES.values()), auc_label, "Diseases",
+         "AUC Scores for General Diseases", auc_xlim),
     ]
 
 
