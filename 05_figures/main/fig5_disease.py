@@ -333,6 +333,14 @@ def main() -> int:
     meas_only_row = ((meas_sig) & (~deep_sig)).sum(axis=1)
     deep_only_row = ((deep_sig) & (~meas_sig)).sum(axis=1)
     both_row = (deep_sig & meas_sig).sum(axis=1)
+    # Each bar axis runs from 0 to its largest single bar rounded up to an even number,
+    # with a middle tick at half that.
+    top_max = int(max(meas_only_col.max(), deep_only_col.max(), both_col.max()))
+    right_max = int(max(meas_only_row.max(), deep_only_row.max(), both_row.max()))
+    top_lim = top_max + top_max % 2
+    right_lim = right_max + right_max % 2
+    print("  bar maxima: top {} -> axis 0..{}, right {} -> axis 0..{}".format(
+        top_max, top_lim, right_max, right_lim))
 
     abs_max = float(np.nanmax(np.abs(np.concatenate([deep_v.ravel(), meas_v.ravel()]))))
     cmap = LinearSegmentedColormap.from_list("beta", ["#0000FF", "#FFFFFF", "#FF0000"])
@@ -415,8 +423,6 @@ def main() -> int:
         # --- marginal bars ------------------------------------------------------------
         bar = 0.25
         centres = np.arange(n_cols) + 0.5
-        ax_top.grid(axis="y", linestyle="--", linewidth=grid_lw, color="gray", alpha=0.5)
-        ax_top.set_axisbelow(True)
         for offset, values, colour, label in (
                 (-bar, meas_only_col, mtif_c, "Measured TIF"),
                 (0.0, deep_only_col, dtif_c, "Deep TIF"),
@@ -426,17 +432,14 @@ def main() -> int:
         ax_top.set_ylabel("Counts", fontsize=label_pt)
         ax_top.tick_params(axis="x", bottom=False, labelbottom=False)
         style_axis(ax_top, axis_lw, tick_len, bar_tick_pt)
-        # Drop the 0 tick. A zero count sits on the axis line and
-        # labels nothing a reader needs. set_yticks() would otherwise stretch the axis to
-        # the next round tick, so the limits are captured first and restored after.
-        top_lim = ax_top.get_ylim()
-        ax_top.set_yticks([t for t in ax_top.get_yticks()
-                           if t != 0 and top_lim[0] <= t <= top_lim[1]])
-        ax_top.set_ylim(top_lim)
+        ax_top.spines[["top", "right"]].set_visible(False)
+        ax_top.set_ylim(0, top_lim)
+        ax_top.set_yticks([0, top_lim // 2, top_lim])
+        # The "0" would centre on the axis base and reach the dashed rule below it, so it
+        # stands on its tick instead.
+        ax_top.get_yticklabels()[0].set_va("bottom")
 
         rows = np.arange(n_rows) + 0.5
-        ax_right.grid(axis="x", linestyle="--", linewidth=grid_lw, color="gray", alpha=0.5)
-        ax_right.set_axisbelow(True)
         for offset, values, colour in ((-bar, meas_only_row, mtif_c),
                                        (0.0, deep_only_row, dtif_c),
                                        (bar, both_row, shared_c)):
@@ -444,8 +447,10 @@ def main() -> int:
                           edgecolor="black", linewidth=bar_lw)
         ax_right.set_xlabel("Counts", fontsize=label_pt)
         ax_right.tick_params(axis="y", left=False, labelleft=False)
-        ax_right.set_xticks([5, 10])
+        ax_right.set_xlim(0, right_lim)
+        ax_right.set_xticks([0, right_lim // 2, right_lim])
         style_axis(ax_right, axis_lw, tick_len, bar_tick_pt)
+        ax_right.spines[["top", "right"]].set_visible(False)
 
         # --- category brackets down the left edge --------------------------------------
         # Drawn in figure coordinates against the finished axes box, so the rules line up
